@@ -21,6 +21,27 @@ checks them and trader-broker asks the user yes or no for each one.
 
 `${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
 
+## France : à lire d'abord
+
+Pour un investisseur en France, pars de `config.fr.example.json` (copie-le
+dans `trader/config.json`) et règle le courtier avec `/trader-frais`. Avec
+`"courtier"` (`boursobank` ou `fortuneo`), `"formule"`, `"enveloppe"` et
+`"devise": "EUR"` :
+
+- tous les montants sont en euros ; les cours américains sont convertis avec
+  `EURUSD=X` dans `trader/prices.json` (`alerts.py quote EURUSD=X --write`) ;
+- ces courtiers n'achètent que des **actions entières** : il faut des cours
+  (`alerts.py quote ... --write`), et une action plus chère que sa part est
+  écartée ;
+- chaque ordre est chiffré avec les vrais frais (courtage, TTF, change) ; un
+  ordre sous le minimum du courtier, ou dont les frais dépassent
+  `max_frais_pct` (2 % par défaut), est écarté avec la raison ;
+- mets l'ISIN de chaque action européenne dans `trader/targets.json`
+  (`"isin": "FR0000133308"`) : il sert à la TTF et au PEA.
+
+Avec 5 ou 10 €, attends-toi à ce que tout soit écarté : dis-le simplement et
+montre pourquoi (prix d'une action, minimum, frais).
+
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/size.py"                       # trader/targets.json + trader/config.json
 python3 "${CLAUDE_SKILL_DIR}/size.py" --budget 5000 --write # write trader/orders.json

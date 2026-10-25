@@ -32,10 +32,20 @@ How the money is split:
 
 Money that cannot be invested (every stock at its cap, or leftovers from
 whole shares) is reported as "left idle", never hidden.
+
+French brokers (trader-frais): when trader/config.json names a "courtier"
+(boursobank, fortuneo) and a "formule", every slice is also priced with the
+broker's real fees (brokerage, TTF, currency exchange). A slice under the
+broker's minimum order, or whose fees are over "max_frais_pct" of the order
+(default 2), is dropped like a slice under min_order_usd. Those brokers only
+buy whole shares, so sizing switches to whole shares and needs prices. With
+"devise": "EUR", amounts are in euros and US prices are converted with the
+EURUSD rate (prices["EURUSD=X"] from trader-alerts, or "eurusd" in the config).
 """
 
 import argparse
 import datetime
+import importlib.util
 import json
 import math
 import os
@@ -54,10 +64,22 @@ DEFAULTS = {
     "allow_options": False,
 }
 EPS = 1e-9
+CURRENCY = {"symbol": "$"}
 
 
 class SizeError(Exception):
     pass
+
+
+def frais_module():
+    """trader-frais/frais.py next to this skill, or None if it is not installed."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trader-frais", "frais.py")
+    if not os.path.exists(path):
+        return None
+    spec = importlib.util.spec_from_file_location("trader_frais", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 # ---------------------------------------------------------------- inputs
@@ -97,7 +119,8 @@ def parse_weights(data):
             w = r.get("weight", r.get("weight_pct", r.get("pct")))
             if not t or w is None:
                 raise SizeError("weights[%d] needs a ticker and a weight" % i)
-            rows.append({"ticker": t, "name": r.get("name", ""), "weight": w})
+            rows.append({"ticker": t, "name": r.get("name", ""), "weight": w,
+                         "isin": r.get("isin"), "type": r.get("type")})
     else:
         raise SizeError("weights must be a list or an object")
     out = []
@@ -106,7 +129,12 @@ def parse_weights(data):
             w = float(r["weight"])
         except (TypeError, ValueError):
             raise SizeError("weight for %s is not a number: %r" % (r["ticker"], r["weight"]))
-        out.append({"ticker": str(r["ticker"]).strip().upper(), "name": r["name"] or "", "weight": w})
+        row = {"ticker": str(r["ticker"]).strip().upper(), "name": r["name"] or "", "weight": w}
+        if r.get("isin"):
+            row["isin"] = str(r["isin"]).strip().upper()
+        if r.get("type"):
+            row["type"] = str(r["type"]).lower()
+        out.append(row)
     return out
 
 
@@ -267,9 +295,26 @@ def size(rows, cfg, budget=None, prices=None, whole=None, cents=False, top=None)
         raise SizeError("cash_buffer_pct must be between 0 and 100")
     if not 0 < cap_pct <= 100:
         raise SizeError("max_position_pct must be above 0 and at most 100")
+    CURRENCY["symbol"] = "€" if str(cfg.get("devise", "")).upper() == "EUR" else "$"
+    F = frais_module() if cfg.get("courtier") else None
+    broker_fees = bool(F) and str(cfg.get("courtier", "")).lower() in F.grilles()["courtiers"]
+    if cfg.get("courtier") and not broker_fees:
+        raise SizeError("courtier %r: trader-frais is missing or does not know this broker" % cfg.get("courtier"))
     if whole is None:
         whole = not cfg.get("fractional", True)
-    prices = prices or {}
+    if broker_fees and not F.grilles()["courtiers"][str(cfg["courtier"]).lower()].get("fractionne"):
+        whole = True
+    max_fee_pct = float(cfg.get("max_frais_pct", 2))
+    prices = dict(prices or {})
+    eurusd = F.eurusd_de(prices, cfg) if F else None
+    if F and str(cfg.get("devise", "")).upper() == "EUR":
+        for t in [r["ticker"] for r in rows]:
+            if t in prices and F.devise(t) == "USD":
+                if not eurusd:
+                    raise SizeError("%s is priced in dollars and the budget in euros: add EURUSD=X to "
+                                    "trader/prices.json (alerts.py quote EURUSD=X --write) or \"eurusd\" "
+                                    "to the config" % t)
+                prices[t] = round(prices[t] / eurusd, 4)
 
     keep, dropped = normalise(rows, cfg.get("blocked"), top)
     if not keep:
@@ -299,20 +344,40 @@ def size(rows, cfg, budget=None, prices=None, whole=None, cents=False, top=None)
         if whole:
             shares = whole_shares(dollars, prices, order, cap, sum(dollars.values()))
             dollars = {t: round(shares[t] * prices[t], 2) for t in order}
-        small = [r for r in live if dollars[r["ticker"]] < min_order - EPS]
+        fees = {}
+        why = {}
+        if broker_fees:
+            for r in live:
+                t = r["ticker"]
+                if dollars[t] <= 0:
+                    continue
+                fr = F.depuis_config(cfg, t, dollars[t], "achat", r.get("isin"), eurusd=eurusd,
+                                     type_titre=r.get("type"))
+                fees[t] = fr
+                if fr["sous_minimum"]:
+                    why[t] = "son ordre (%s) est sous le minimum de %s chez %s" % (
+                        money(dollars[t]), money(fr["minimum_ordre"]), fr["courtier"])
+                elif fr["pct"] > max_fee_pct + EPS:
+                    why[t] = "les frais (%s, %s %% de l'ordre) dépassent ton plafond de %s %%" % (
+                        money(fr["total"]), _num(fr["pct"]).replace(".", ","), _num(max_fee_pct).replace(".", ","))
+        small = [r for r in live if dollars[r["ticker"]] < min_order - EPS or r["ticker"] in why]
         if not small:
             break
         worst = min(small, key=lambda r: (r["source_weight"], r["ticker"]))
-        if whole and shares is not None and shares[worst["ticker"]] == 0 and prices.get(worst["ticker"], 0) > 0:
-            reason = ("one share costs $%s, more than its slice; it cannot be bought in whole shares"
-                      % _num(prices[worst["ticker"]]))
+        if worst["ticker"] in why and dollars[worst["ticker"]] >= min_order - EPS:
+            reason = why[worst["ticker"]]
+        elif whole and shares is not None and shares[worst["ticker"]] == 0 and prices.get(worst["ticker"], 0) > 0:
+            reason = ("one share costs %s, more than its slice; it cannot be bought in whole shares"
+                      % money(prices[worst["ticker"]]))
         else:
-            reason = "its slice ($%s) is under your $%s minimum order" % (
-                _num(dollars[worst["ticker"]]), _num(min_order))
+            reason = "its slice (%s) is under your %s minimum order" % (
+                money(dollars[worst["ticker"]]), money(min_order))
         dropped.append({"ticker": worst["ticker"], "reason": reason})
         keep = [r for r in keep if r["ticker"] != worst["ticker"]]
         if not keep:
-            raise SizeError("every slice is under your minimum order; raise the budget or hold fewer stocks")
+            raise SizeError("every slice is under your minimum order%s; raise the budget or hold fewer stocks\n%s"
+                            % (" or costs too much in fees" if broker_fees else "",
+                               "\n".join("  %s: %s" % (d["ticker"], d["reason"]) for d in dropped)))
 
     positions = []
     for r in sorted(live, key=lambda r: -r["weight"]):
@@ -323,14 +388,23 @@ def size(rows, cfg, budget=None, prices=None, whole=None, cents=False, top=None)
         if prices.get(t):
             p["price"] = prices[t]
             p["shares"] = shares[t] if whole else round(dollars[t] / prices[t], 4)
+        for k in ("isin", "type"):
+            if r.get(k):
+                p[k] = r[k]
+        if t in fees:
+            p["fees"] = fees[t]
         positions.append(p)
     invested = round(sum(p["dollars"] for p in positions), 2)
+    fees_total = round(sum(p["fees"]["total"] for p in positions if p.get("fees")), 2)
     return {
         "budget": budget, "cash_buffer_pct": buf_pct, "cash_buffer": cash_buffer,
         "investable": investable, "max_position_pct": cap_pct, "cap": cap,
         "min_order_usd": min_order, "whole_shares": bool(whole),
         "positions": positions, "invested": invested,
         "idle": round(investable - invested, 2), "dropped": dropped,
+        "fees_total": fees_total if broker_fees else None,
+        "courtier": cfg.get("courtier") if broker_fees else None,
+        "enveloppe": str(cfg.get("enveloppe", "CTO")).upper() if broker_fees else None,
     }
 
 
@@ -361,6 +435,14 @@ def orders_from(result, source=""):
         else:
             o["notional"] = _num(p["dollars"])
         o.update({"type": "market", "time_in_force": "day", "why": why})
+        if result.get("enveloppe"):
+            o["enveloppe"] = result["enveloppe"]
+        if p.get("isin"):
+            o["isin"] = p["isin"]
+        if p.get("type"):
+            o["type_titre"] = p["type"]
+        if p.get("fees"):
+            o["frais_estimes"] = p["fees"]["total"]
         out.append(o)
     return out
 
@@ -388,6 +470,9 @@ def write_orders(path, orders, result, cfg, source=""):
 
 def money(x):
     x = float(x)
+    if CURRENCY["symbol"] == "€":
+        s = ("{:,.0f}" if abs(x - round(x)) < 0.005 else "{:,.2f}").format(round(x, 2))
+        return s.replace(",", " ").replace(".", ",") + " €"
     if abs(x - round(x)) < 0.005:
         return "$" + "{:,.0f}".format(round(x))
     return "$" + "{:,.2f}".format(x)
@@ -403,7 +488,7 @@ def report(result, orders, source=""):
                     money(r["investable"]), _num(r["max_position_pct"]), money(r["cap"])))
     lines.append("")
     has_price = any("price" in p for p in r["positions"])
-    head = "%-7s %-22s %8s %11s" % ("ticker", "name", "weight", "dollars")
+    head = "%-7s %-22s %8s %11s" % ("ticker", "name", "weight", "euros" if CURRENCY["symbol"] == "€" else "dollars")
     if has_price:
         head += " %10s %10s" % ("price", "shares")
     lines.append(head + "  note")
@@ -417,6 +502,19 @@ def report(result, orders, source=""):
     lines.append("%-7s %-22s %8s %11s" % ("", "invested", "", money(r["invested"])))
     lines.append("%-7s %-22s %8s %11s" % ("", "cash buffer", "", money(r["cash_buffer"])))
     lines.append("%-7s %-22s %8s %11s" % ("", "left idle", "", money(r["idle"])))
+    if r.get("fees_total") is not None:
+        lines.append("")
+        lines.append("Frais estimés chez %s (%s) : %s au total, à l'achat" % (
+            r["courtier"], r["enveloppe"], money(r["fees_total"])))
+        for p in r["positions"]:
+            f = p.get("fees")
+            if f:
+                lines.append("  %-7s %s : courtage %s, TTF %s, change %s = %s (%s %%)" % (
+                    p["ticker"], money(p["dollars"]), money(f["courtage"]), money(f["ttf"]),
+                    money(f["change"]), money(f["total"]), _num(f["pct"]).replace(".", ",")))
+                for n in f["notes"]:
+                    if "TTF" not in n:
+                        lines.append("          note : " + n)
     if r["idle"] >= 1:
         lines.append("")
         lines.append("Left idle %s: %s" % (money(r["idle"]), (
@@ -451,6 +549,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
     try:
         cfg = load_config(a.config)
+        if str(cfg.get("devise", "")).upper() == "EUR":
+            CURRENCY["symbol"] = "€"
         source = ""
         if a.weights:
             rows = parse_weights(weights_from_arg(a.weights))

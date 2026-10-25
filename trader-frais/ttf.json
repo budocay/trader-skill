@@ -1,0 +1,491 @@
+{
+ "_note": "Sociétés françaises soumises à la TTF en 2026 : siège en France et capitalisation au-dessus de 1 milliard d'euros au 1er décembre 2025. Liste publiée au BOFiP le 17/12/2025, recopiée depuis abcbourse.com/marches/liste_societes_ttf le 25/10/2026. Tarkett y figure mais a été retirée de la cote en décembre 2025. La liste change chaque 1er janvier.",
+ "annee": 2026,
+ "taux_pct": 0.4,
+ "societes": [
+  {
+   "isin": "FR0000031023",
+   "nom": "Electricite de Strasbourg"
+  },
+  {
+   "isin": "FR0000031577",
+   "nom": "Virbac"
+  },
+  {
+   "isin": "FR0000031775",
+   "nom": "Vicat"
+  },
+  {
+   "isin": "FR0000033219",
+   "nom": "Altarea"
+  },
+  {
+   "isin": "FR0000035081",
+   "nom": "Icade"
+  },
+  {
+   "isin": "FR0000039091",
+   "nom": "Robertet"
+  },
+  {
+   "isin": "FR0000039299",
+   "nom": "Bollore"
+  },
+  {
+   "isin": "FR0000044448",
+   "nom": "Nexans"
+  },
+  {
+   "isin": "FR0000045072",
+   "nom": "Credit Agricole"
+  },
+  {
+   "isin": "FR0000050049",
+   "nom": "Viel Et Compagnie"
+  },
+  {
+   "isin": "FR0000050353",
+   "nom": "Lisi"
+  },
+  {
+   "isin": "FR0000050809",
+   "nom": "Sopra Steria Group"
+  },
+  {
+   "isin": "FR0000051807",
+   "nom": "Teleperformance"
+  },
+  {
+   "isin": "FR0000052292",
+   "nom": "Hermes"
+  },
+  {
+   "isin": "FR0000053225",
+   "nom": "Metropole Tv"
+  },
+  {
+   "isin": "FR0000053324",
+   "nom": "Alpes (Compagnie)"
+  },
+  {
+   "isin": "FR0000053837",
+   "nom": "Altamir"
+  },
+  {
+   "isin": "FR0000054900",
+   "nom": "TF1"
+  },
+  {
+   "isin": "FR0000060303",
+   "nom": "Covivio Hotels"
+  },
+  {
+   "isin": "FR0000062234",
+   "nom": "Compagnie Odet"
+  },
+  {
+   "isin": "FR0000062671",
+   "nom": "Exail technologies"
+  },
+  {
+   "isin": "FR0000064271",
+   "nom": "STEF"
+  },
+  {
+   "isin": "FR0000064578",
+   "nom": "Covivio"
+  },
+  {
+   "isin": "FR0000064784",
+   "nom": "Peugeot Invest"
+  },
+  {
+   "isin": "FR0000071946",
+   "nom": "Alten"
+  },
+  {
+   "isin": "FR0000073272",
+   "nom": "Safran"
+  },
+  {
+   "isin": "FR0000073298",
+   "nom": "Ipsos"
+  },
+  {
+   "isin": "FR0000076952",
+   "nom": "Artois Nom."
+  },
+  {
+   "isin": "FR0000077919",
+   "nom": "JC Decaux SE"
+  },
+  {
+   "isin": "FR0000120073",
+   "nom": "Air Liquide"
+  },
+  {
+   "isin": "FR0000120172",
+   "nom": "Carrefour"
+  },
+  {
+   "isin": "FR0000120271",
+   "nom": "TotalEnergies"
+  },
+  {
+   "isin": "FR0000120321",
+   "nom": "L'oreal"
+  },
+  {
+   "isin": "FR0000120404",
+   "nom": "Accor Hotels"
+  },
+  {
+   "isin": "FR0000120503",
+   "nom": "Bouygues"
+  },
+  {
+   "isin": "FR0000120578",
+   "nom": "Sanofi"
+  },
+  {
+   "isin": "FR0000120628",
+   "nom": "Axa"
+  },
+  {
+   "isin": "FR0000120644",
+   "nom": "Danone"
+  },
+  {
+   "isin": "FR0000120693",
+   "nom": "Pernod Ricard"
+  },
+  {
+   "isin": "FR0000120859",
+   "nom": "Imerys"
+  },
+  {
+   "isin": "FR0000120966",
+   "nom": "Bic"
+  },
+  {
+   "isin": "FR0000121014",
+   "nom": "Lvmh"
+  },
+  {
+   "isin": "FR0000121121",
+   "nom": "Eurazeo"
+  },
+  {
+   "isin": "FR0000121147",
+   "nom": "Forvia"
+  },
+  {
+   "isin": "FR0000121204",
+   "nom": "Wendel"
+  },
+  {
+   "isin": "FR0000121220",
+   "nom": "Sodexo"
+  },
+  {
+   "isin": "FR0000121329",
+   "nom": "Thales"
+  },
+  {
+   "isin": "FR0000121485",
+   "nom": "Kering"
+  },
+  {
+   "isin": "FR0000121667",
+   "nom": "EssilorLuxottica"
+  },
+  {
+   "isin": "FR0000121709",
+   "nom": "Seb"
+  },
+  {
+   "isin": "FR0000121964",
+   "nom": "Klepierre"
+  },
+  {
+   "isin": "FR0000121972",
+   "nom": "Schneider Electric"
+  },
+  {
+   "isin": "FR0000124141",
+   "nom": "Veolia"
+  },
+  {
+   "isin": "FR0000124570",
+   "nom": "OPmobility"
+  },
+  {
+   "isin": "FR0000125007",
+   "nom": "Saint Gobain"
+  },
+  {
+   "isin": "FR0000125338",
+   "nom": "Capgemini"
+  },
+  {
+   "isin": "FR0000125486",
+   "nom": "Vinci"
+  },
+  {
+   "isin": "FR0000127771",
+   "nom": "Vivendi"
+  },
+  {
+   "isin": "FR0000130213",
+   "nom": "Lagardere"
+  },
+  {
+   "isin": "FR0000130395",
+   "nom": "Remy Cointreau"
+  },
+  {
+   "isin": "FR0000130403",
+   "nom": "Christian Dior"
+  },
+  {
+   "isin": "FR0000130452",
+   "nom": "Eiffage"
+  },
+  {
+   "isin": "FR0000130577",
+   "nom": "Publicis Groupe"
+  },
+  {
+   "isin": "FR0000130809",
+   "nom": "Societe Generale"
+  },
+  {
+   "isin": "FR0000131104",
+   "nom": "Bnp Paribas"
+  },
+  {
+   "isin": "FR0000131757",
+   "nom": "Eramet"
+  },
+  {
+   "isin": "FR0000131906",
+   "nom": "Renault"
+  },
+  {
+   "isin": "FR0000133308",
+   "nom": "Orange"
+  },
+  {
+   "isin": "FR0004024222",
+   "nom": "Interparfums"
+  },
+  {
+   "isin": "FR0004050250",
+   "nom": "Neurones"
+  },
+  {
+   "isin": "FR0004125920",
+   "nom": "Amundi"
+  },
+  {
+   "isin": "FR0004188670",
+   "nom": "Tarkett"
+  },
+  {
+   "isin": "FR0005691656",
+   "nom": "Trigano"
+  },
+  {
+   "isin": "FR0006174348",
+   "nom": "Bureau Veritas"
+  },
+  {
+   "isin": "FR0010040865",
+   "nom": "Gecina Nom."
+  },
+  {
+   "isin": "FR0010208488",
+   "nom": "Engie"
+  },
+  {
+   "isin": "FR0010220475",
+   "nom": "Alstom"
+  },
+  {
+   "isin": "FR0010221234",
+   "nom": "Eutelsat"
+  },
+  {
+   "isin": "FR0010241638",
+   "nom": "Mercialys"
+  },
+  {
+   "isin": "FR0010259150",
+   "nom": "Ipsen"
+  },
+  {
+   "isin": "FR0010282822",
+   "nom": "Vusion"
+  },
+  {
+   "isin": "FR0010307819",
+   "nom": "Legrand SA"
+  },
+  {
+   "isin": "FR0010313833",
+   "nom": "Arkema"
+  },
+  {
+   "isin": "FR0010340141",
+   "nom": "Adp"
+  },
+  {
+   "isin": "FR0010386334",
+   "nom": "Clariane"
+  },
+  {
+   "isin": "FR0010411983",
+   "nom": "Scor"
+  },
+  {
+   "isin": "FR0010451203",
+   "nom": "Rexel"
+  },
+  {
+   "isin": "FR0010481960",
+   "nom": "Argan"
+  },
+  {
+   "isin": "FR0010533075",
+   "nom": "Getlink"
+  },
+  {
+   "isin": "FR0010667147",
+   "nom": "Coface"
+  },
+  {
+   "isin": "FR0010828137",
+   "nom": "Carmila"
+  },
+  {
+   "isin": "FR0010908533",
+   "nom": "Edenred"
+  },
+  {
+   "isin": "FR0010929125",
+   "nom": "ID Logistics"
+  },
+  {
+   "isin": "FR0011040500",
+   "nom": "74Software"
+  },
+  {
+   "isin": "FR0011726835",
+   "nom": "GTT"
+  },
+  {
+   "isin": "FR0012333284",
+   "nom": "Abivax"
+  },
+  {
+   "isin": "FR0012435121",
+   "nom": "Elis"
+  },
+  {
+   "isin": "FR0012757854",
+   "nom": "Spie"
+  },
+  {
+   "isin": "FR0013154002",
+   "nom": "Sartorius Stedim Biotech"
+  },
+  {
+   "isin": "FR0013176526",
+   "nom": "Valeo"
+  },
+  {
+   "isin": "FR0013230612",
+   "nom": "Tikehau Capital"
+  },
+  {
+   "isin": "FR0013258662",
+   "nom": "Ayvens"
+  },
+  {
+   "isin": "FR0013269123",
+   "nom": "Rubis"
+  },
+  {
+   "isin": "FR0013280286",
+   "nom": "Biomerieux"
+  },
+  {
+   "isin": "FR0013326246",
+   "nom": "Unibail Rodamco Westfield"
+  },
+  {
+   "isin": "FR0013357621",
+   "nom": "Wavestone"
+  },
+  {
+   "isin": "FR0013447729",
+   "nom": "Verallia"
+  },
+  {
+   "isin": "FR0013451333",
+   "nom": "FDJ United"
+  },
+  {
+   "isin": "FR0013506730",
+   "nom": "Vallourec"
+  },
+  {
+   "isin": "FR0014003TT8",
+   "nom": "Dassault Systemes"
+  },
+  {
+   "isin": "FR0014004L86",
+   "nom": "Dassault Aviation"
+  },
+  {
+   "isin": "FR0014005AL0",
+   "nom": "Antin Infra. Partners"
+  },
+  {
+   "isin": "FR0014005HJ9",
+   "nom": "OVHCLOUD"
+  },
+  {
+   "isin": "FR001400AJ45",
+   "nom": "Michelin"
+  },
+  {
+   "isin": "FR001400J770",
+   "nom": "Air France - KLM"
+  },
+  {
+   "isin": "FR001400NLM4",
+   "nom": "Emeis"
+  },
+  {
+   "isin": "FR001400PFU4",
+   "nom": "Planisware"
+  },
+  {
+   "isin": "FR001400Q9V2",
+   "nom": "Exosens"
+  },
+  {
+   "isin": "FR001400SF56",
+   "nom": "Ldc"
+  },
+  {
+   "isin": "FR001400SU99",
+   "nom": "Moncey Fin. Nom."
+  },
+  {
+   "isin": "FR001400SUB7",
+   "nom": "Cambodge Nom."
+  }
+ ]
+}

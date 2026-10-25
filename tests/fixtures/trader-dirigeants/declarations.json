@@ -1,0 +1,20 @@
+{
+  "_note": "Montants et références de deux vraies déclarations publiées par l'AMF en octobre 2026 (lues le 25/10/2026) ; noms des déclarants remplacés. Les trois dernières sont inventées pour les tests.",
+  "declarations": [
+    {"reference": "2026DD1141604", "societe": "Orange", "isin": "FR0000133308",
+     "declarant": "Dirigeant A, membre du comité exécutif", "nature": "Acquisition",
+     "date": "2026-10-01", "publie": "2026-10-01", "prix": "13,6941", "volume": "10000", "lie_programme": "non"},
+    {"reference": "2026DD1144609", "societe": "GL Events", "isin": "FR0000066672",
+     "declarant": "Société B, personne morale liée au président-directeur général", "nature": "Acquisition",
+     "date": "2026-10-15", "publie": "2026-10-16", "prix": "30.0362", "volume": "97000", "lie_programme": "non"},
+    {"reference": "TEST0000001", "societe": "Orange", "isin": "FR0000133308",
+     "declarant": "Dirigeant C, directeur financier", "nature": "Acquisition",
+     "date": "2026-10-08", "prix": "13.50", "volume": "2000", "lie_programme": "non"},
+    {"reference": "TEST0000002", "societe": "Orange", "isin": "FR0000133308",
+     "declarant": "Dirigeant D, administrateur", "nature": "Exercice d'options",
+     "date": "2026-10-09", "prix": "9.00", "volume": "50000", "lie_programme": "oui"},
+    {"reference": "TEST0000003", "societe": "TotalEnergies", "isin": "FR0000120271",
+     "declarant": "Dirigeant E, directeur général délégué", "nature": "Cession",
+     "date": "2026-09-01", "prix": "57.00", "volume": "3000", "lie_programme": "non"}
+  ]
+}

@@ -22,6 +22,24 @@ it does not go to the broker.
 
 `${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
 
+## France : contrôles en plus
+
+Quand `trader/config.json` a `"courtier"`, `"enveloppe"` ou `"devise": "EUR"`,
+check.py ajoute (avec `/trader-frais`) :
+
+- **pea** : bloque l'achat d'un titre qui n'a pas sa place dans un PEA
+  (action américaine, britannique, ISIN hors UE/EEE) sur un ordre PEA ;
+  prévient quand c'est à vérifier (ETF, action européenne sans ISIN) ;
+- **priips** : bloque l'achat d'un ETF américain (VOO, QQQ, SPY, NANC...) ;
+- **fractionné** : bloque un ordre en montant (`notional`) chez un courtier qui
+  n'achète que des actions entières ;
+- **frais** : bloque un ordre sous le minimum du courtier, ou dont les frais
+  (courtage + TTF + change) dépassent `max_frais_pct` ; le contrôle des
+  liquidités compte les frais.
+
+Montre la raison en français telle qu'elle sort, et les frais estimés de
+chaque ordre.
+
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/check.py"             # trader/ files; writes trader/state/risk.json
 python3 "${CLAUDE_SKILL_DIR}/check.py" --json

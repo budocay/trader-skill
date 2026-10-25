@@ -1,0 +1,80 @@
+{
+  "_note": "Grilles de frais de courtage, relevées le 25/10/2026. Les tarifs changent : vérifie sur le site du courtier avant de t'y fier. Les montants sont en euros, les taux en pour cent du montant total de l'ordre.",
+  "plafond_pea_pct": 0.5,
+  "plafond_pea_source": "Loi Pacte : frais de courtage d'un ordre en ligne sur PEA plafonnés à 0,5 % du montant",
+  "ttf_pct": 0.4,
+  "ttf_source": "Taxe sur les transactions financières : 0,4 % des achats depuis le 1er avril 2025, sur les sociétés de ttf.json",
+  "courtiers": {
+    "boursobank": {
+      "nom": "BoursoBank (ex-Boursorama)",
+      "compte_en_france": true,
+      "fractionne": false,
+      "source": "Brochure tarifaire BoursoBank applicable au 05/10/2026 (boursorama.com/content/brochure_tarifaire/boursorama_bt-new.pdf)",
+      "minimum_ordre": {
+        "CTO": {"euronext": 20, "us": 20, "europe": 20},
+        "PEA": {"euronext": 100, "europe": 2500}
+      },
+      "minimum_ordre_etf": {"CTO": 100, "PEA": 100},
+      "change": {"mode": "points", "valeur": 0.0025, "texte": "taux de change J+1 majoré de 0,0025 point"},
+      "inactivite": "5,95 € par mois et par compte sans ordre exécuté (Classic, Trader) ; Découverte sans abonnement",
+      "formules": {
+        "decouverte": {
+          "nom": "Découverte",
+          "enveloppes": ["CTO"],
+          "euronext": {"forfait": 1.99, "jusqua": 500, "taux_au_dela": 0.60},
+          "us": {"forfait": 6.95, "jusqua": 6000, "taux_au_dela": 0.12},
+          "europe": {"forfait": 11.95, "jusqua": 4000, "taux_au_dela": 0.30}
+        },
+        "classic": {
+          "nom": "Classic",
+          "euronext": {"forfait": 5.50, "jusqua": 1000, "taux_au_dela": 0.48, "minimum_au_dela": 8.95},
+          "us": {"forfait": 6.95, "jusqua": 6000, "taux_au_dela": 0.12},
+          "europe": {"forfait": 11.95, "jusqua": 4000, "taux_au_dela": 0.30}
+        },
+        "trader": {
+          "nom": "Trader",
+          "euronext": {"forfait": 16.65, "jusqua": 7750, "taux_au_dela": 0.22},
+          "us": {"forfait": 6.95, "jusqua": 6000, "taux_au_dela": 0.12},
+          "europe": {"forfait": 11.95, "jusqua": 4000, "taux_au_dela": 0.30}
+        },
+        "ultimate_trader": {
+          "nom": "Ultimate Trader",
+          "enveloppes": ["PEA"],
+          "euronext": {"forfait": 9.90, "jusqua": 10000, "taux_au_dela": 0.12},
+          "us": {"forfait": 6.95, "jusqua": 6000, "taux_au_dela": 0.12},
+          "europe": {"forfait": 11.95, "jusqua": 4000, "taux_au_dela": 0.30},
+          "condition": "30 ordres par mois, sinon 119 € par mois (hors premier mois)"
+        }
+      }
+    },
+    "fortuneo": {
+      "nom": "Fortuneo",
+      "compte_en_france": true,
+      "fractionne": false,
+      "source": "Formules relevées sur moneyvox.fr, pea.fr et guidedelabanque.fr (grilles de juin à octobre 2026). Le tarif Starter sur les actions américaines diffère selon les sources : à vérifier sur fortuneo.fr.",
+      "minimum_ordre": {
+        "CTO": {"euronext": 0, "us": 0, "europe": 0},
+        "PEA": {"euronext": 0, "europe": 0}
+      },
+      "change": {"mode": "pct", "valeur": 0.12, "texte": "taux J+1 et commission de 0,12 %"},
+      "inactivite": "pas de frais de garde, de tenue de compte ni d'inactivité",
+      "formules": {
+        "starter": {
+          "nom": "Starter",
+          "euronext": {"taux": 0.35, "premier_ordre_du_mois_gratuit_jusqua": 500},
+          "us": {"taux": 0.20, "minimum": 20, "a_verifier": true}
+        },
+        "progress": {
+          "nom": "Progress",
+          "euronext": {"forfait": 4.90, "jusqua": 3000, "taux_au_dela": 0.15},
+          "us": {"forfait": 9.50, "jusqua": 10000, "taux_au_dela": 0.12}
+        },
+        "trader_pro": {
+          "nom": "Trader Pro",
+          "euronext": {"forfait": 9.50, "jusqua": 10000, "taux_au_dela": 0.10},
+          "us": {"forfait": 9.50, "jusqua": 10000, "taux_au_dela": 0.12}
+        }
+      }
+    }
+  }
+}

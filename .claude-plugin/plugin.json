@@ -1,21 +1,24 @@
 {
-  "name": "trader-skill",
-  "description": "11 Claude skills that copy the investors you trust, watch the news and Congress, size every trade to your budget, and never place an order without your yes.",
-  "version": "1.0.0",
+  "name": "trader-skill-fr",
+  "description": "13 skills Claude pour investir depuis la France : les vrais frais de BoursoBank et Fortuneo, la fiscalité française, le PEA, les dirigeants qui achètent, et jamais un ordre sans ton oui.",
+  "version": "1.1.0",
   "author": {
-    "name": "Jake Schincariol",
-    "url": "https://opusjake.ai"
+    "name": "budocay, d'après Jake Schincariol",
+    "url": "https://github.com/budocay/trader-skill"
   },
-  "homepage": "https://github.com/Jakeschincariol/trader-skill",
-  "repository": "https://github.com/Jakeschincariol/trader-skill",
+  "homepage": "https://github.com/budocay/trader-skill",
+  "repository": "https://github.com/budocay/trader-skill",
   "license": "MIT",
   "keywords": [
     "claude-code",
     "claude-skills",
-    "investing",
+    "investissement",
+    "pea",
+    "fiscalite",
+    "boursobank",
+    "fortuneo",
+    "amf",
     "13f",
-    "stock-market",
-    "congress-trades",
     "portfolio"
   ],
   "skills": "./"

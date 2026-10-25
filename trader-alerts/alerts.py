@@ -33,6 +33,14 @@ Quotes (free, delayed, for alerts only, never for placing orders):
 NYSE calendar: the 2026 and 2027 holidays and 1:00 p.m. early closes as
 published at https://www.nyse.com/markets/hours-calendars (read 2026-10-13).
 Outside those years the clock says the holiday list is unknown.
+
+Euronext Paris (clock --place paris): 9:00 to 17:30 Paris time, closing
+auction included; closed on 1 January, Good Friday, Easter Monday, 1 May,
+25 and 26 December; 24 and 31 December close at 14:05. 2026 dates checked on
+abcbourse.com (read 2026-10-25); 2027 follows the same Euronext rule and
+must be checked against live.euronext.com once Euronext publishes it.
+French tickers use Yahoo's suffixes: MC.PA (Paris), ASML.AS (Amsterdam),
+SAP.DE (Xetra). EURUSD=X gives the euro-dollar rate the French skills use.
 """
 
 import argparse
@@ -77,6 +85,27 @@ NYSE_EARLY_CLOSE = {  # 1:00 p.m. ET
     "2027-11-26": "day after Thanksgiving",
 }
 CALENDAR_YEARS = (2026, 2027)
+EURONEXT_HOLIDAYS = {
+    "2026-01-01": "Jour de l'an",
+    "2026-04-03": "Vendredi saint",
+    "2026-04-06": "Lundi de Pâques",
+    "2026-05-01": "Fête du travail",
+    "2026-12-25": "Noël",
+    "2027-01-01": "Jour de l'an",
+    "2027-03-26": "Vendredi saint",
+    "2027-03-29": "Lundi de Pâques",
+}
+EURONEXT_EARLY_CLOSE = {  # 14:05, heure de Paris
+    "2026-12-24": "veille de Noël",
+    "2026-12-31": "veille du jour de l'an",
+    "2027-12-24": "veille de Noël",
+    "2027-12-31": "veille du jour de l'an",
+}
+PARIS_OPEN = datetime.time(9, 0)
+PARIS_CLOSE = datetime.time(17, 30)
+PARIS_EARLY = datetime.time(14, 5)
+EXCHANGE_SUFFIXES = {"PA", "AS", "BR", "LS", "DE", "F", "MI", "MC", "SW", "VI", "HE", "CO", "ST",
+                     "OL", "IR", "L"}
 OPEN = datetime.time(9, 30)
 CLOSE = datetime.time(16, 0)
 EARLY = datetime.time(13, 0)
@@ -117,8 +146,81 @@ def eastern_to_utc(local):
     return local + datetime.timedelta(hours=5)
 
 
-def parse_now(text):
-    """ISO time -> naive UTC. A time without an offset is taken as New York time."""
+def _last_sunday(year, month):
+    d = datetime.date(year, month + 1, 1) - datetime.timedelta(days=1) if month < 12 else datetime.date(year, 12, 31)
+    return d - datetime.timedelta(days=(d.weekday() + 1) % 7)
+
+
+def paris_offset(utc):
+    """Hours from UTC for Paris: +2 in summer time, +1 otherwise. EU rule: summer
+    time from 01:00 UTC on the last Sunday of March to 01:00 UTC on the last
+    Sunday of October."""
+    y = utc.year
+    start = datetime.datetime.combine(_last_sunday(y, 3), datetime.time(1, 0))
+    end = datetime.datetime.combine(_last_sunday(y, 10), datetime.time(1, 0))
+    naive = utc.replace(tzinfo=None)
+    return 2 if start <= naive < end else 1
+
+
+def to_paris(utc):
+    return utc.replace(tzinfo=None) + datetime.timedelta(hours=paris_offset(utc))
+
+
+def paris_to_utc(local):
+    for off in (2, 1):
+        utc = local - datetime.timedelta(hours=off)
+        if paris_offset(utc) == off:
+            return utc
+    return local - datetime.timedelta(hours=1)
+
+
+def trading_day_paris(d):
+    if d.weekday() >= 5:
+        return False, "week-end"
+    name = EURONEXT_HOLIDAYS.get(d.isoformat())
+    if name:
+        return False, "Euronext fermé : " + name
+    if d.month == 12 and d.day == 26:
+        return False, "Euronext fermé : lendemain de Noël"
+    return True, ""
+
+
+def session_paris(d):
+    ok, _ = trading_day_paris(d)
+    if not ok:
+        return None
+    return PARIS_OPEN, (PARIS_EARLY if d.isoformat() in EURONEXT_EARLY_CLOSE else PARIS_CLOSE)
+
+
+def market_status_paris(now_utc):
+    local = to_paris(now_utc)
+    d = local.date()
+    ok, reason = trading_day_paris(d)
+    st = {"place": "Euronext Paris", "now_paris": local.strftime("%Y-%m-%d %H:%M"), "date": d.isoformat(),
+          "calendar_known": d.year in CALENDAR_YEARS, "open": False, "reason": reason,
+          "early_close": EURONEXT_EARLY_CLOSE.get(d.isoformat())}
+    s = session_paris(d)
+    if s:
+        o, c = s
+        st["opens"], st["closes"] = o.strftime("%H:%M"), c.strftime("%H:%M")
+        if o <= local.time() < c:
+            st["open"], st["reason"] = True, "séance en cours"
+        elif local.time() < o:
+            st["reason"] = "avant l'ouverture"
+        else:
+            st["reason"] = "après la clôture"
+    nd = d if (s and local.time() < s[0]) else d + datetime.timedelta(days=1)
+    for _ in range(15):
+        if session_paris(nd):
+            st["next_open"] = "%s 09:00" % nd.isoformat()
+            break
+        nd += datetime.timedelta(days=1)
+    return st
+
+
+def parse_now(text, place="nyse"):
+    """ISO time -> naive UTC. A time without an offset is taken as New York time
+    (or Paris time with place "paris")."""
     if not text:
         return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0, tzinfo=None)
     t = text.strip().replace("Z", "+00:00")
@@ -127,7 +229,7 @@ def parse_now(text):
     except ValueError:
         raise AlertError("--now wants an ISO time like 2026-10-13T09:31 (New York) or ...Z (UTC)")
     if dt.tzinfo is None:
-        return eastern_to_utc(dt)
+        return paris_to_utc(dt) if place == "paris" else eastern_to_utc(dt)
     return (dt - dt.utcoffset()).replace(tzinfo=None)
 
 
@@ -183,9 +285,25 @@ def stooq_url(sym):
     return "https://stooq.com/q/l/?s=%s.us&f=sd2t2ohlcv&h&e=csv" % sym.lower().replace(".", "-")
 
 
+def yahoo_symbol(sym):
+    """BRK.B -> BRK-B (a US share class), but MC.PA and SAP.DE keep their exchange suffix."""
+    s = sym.upper()
+    if "." in s and s.rsplit(".", 1)[1] in EXCHANGE_SUFFIXES:
+        return s
+    return s.replace(".", "-")
+
+
+def currency_mark(sym):
+    s = sym.upper()
+    if s.endswith("=X"):
+        return ""
+    if "." in s and s.rsplit(".", 1)[1] in EXCHANGE_SUFFIXES:
+        return {"L": "GBp ", "SW": "CHF "}.get(s.rsplit(".", 1)[1], "€")
+    return "$"
+
+
 def yahoo_url(sym):
-    return "https://query1.finance.yahoo.com/v8/finance/chart/%s?range=1d&interval=1d" % (
-        sym.upper().replace(".", "-"))
+    return "https://query1.finance.yahoo.com/v8/finance/chart/%s?range=1d&interval=1d" % yahoo_symbol(sym)
 
 
 def parse_stooq(text, sym):
@@ -398,6 +516,21 @@ def _dedupe(items):
 
 
 def cmd_clock(a):
+    if getattr(a, "place", "nyse") == "paris":
+        st = market_status_paris(parse_now(a.now, "paris"))
+        if a.json:
+            print(json.dumps(st, indent=2, ensure_ascii=False))
+        else:
+            print("Paris %s : Euronext %s, %s." % (st["now_paris"], "OUVERT" if st["open"] else "fermé", st["reason"]))
+            if st.get("opens"):
+                print("Séance du jour : %s à %s%s." % (st["opens"], st["closes"],
+                      (" (clôture anticipée : %s)" % st["early_close"]) if st.get("early_close") else ""))
+            if not st["open"] and st.get("next_open"):
+                print("Prochaine ouverture : %s, heure de Paris." % st["next_open"])
+            if not st["calendar_known"]:
+                print("Jours fériés connus pour %s seulement : vérifie sur live.euronext.com."
+                      % " et ".join(map(str, CALENDAR_YEARS)))
+        return 0 if st["open"] else 1
     st = market_status(parse_now(a.now))
     if a.json:
         print(json.dumps(st, indent=2))
@@ -430,8 +563,10 @@ def cmd_quote(a):
             if q:
                 chg = ""
                 if q.get("prev_close"):
-                    chg = " (%+.2f%% vs prev close $%.2f)" % (100.0 * (q["price"] / q["prev_close"] - 1), q["prev_close"])
-                print("%-6s $%.2f%s  %s  [%s]" % (s, q["price"], chg, q.get("time", ""), q["source"]))
+                    chg = " (%+.2f%% vs prev close %s%.2f)" % (100.0 * (q["price"] / q["prev_close"] - 1),
+                                                             currency_mark(s), q["prev_close"])
+                print("%-6s %s%s%s  %s  [%s]" % (s, currency_mark(s), ("%.4f" if s.endswith("=X") else "%.2f") % q["price"],
+                                               chg, q.get("time", ""), q["source"]))
         for e in errors:
             print("error: " + e)
         if a.write and quotes:
@@ -544,7 +679,8 @@ def main(argv=None):
         p.add_argument("--now", help="pretend it is this time (ISO; no offset = New York time)")
         p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("clock", help="is the NYSE open?")
+    p = sub.add_parser("clock", help="is the NYSE (or Euronext Paris) open?")
+    p.add_argument("--place", default="nyse", choices=["nyse", "paris"])
     p.add_argument("--now")
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("quote", help="latest delayed quotes")

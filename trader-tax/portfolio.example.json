@@ -1,10 +1,12 @@
 {
-  "cash": 500.0,
+  "cash": 120.0,
   "positions": [
-    {"ticker": "AAPL", "shares": 3.6628, "lots": [{"id": "AAPL-1", "date": "2026-10-13", "shares": 3.6628, "cost": 1250.0}]},
-    {"ticker": "AXP", "shares": 3.6115, "lots": [{"id": "AXP-1", "date": "2026-10-13", "shares": 3.6115, "cost": 1119.0}]},
-    {"ticker": "GOOGL", "shares": 2.3263, "lots": [{"id": "GOOGL-1", "date": "2026-10-13", "shares": 2.3263, "cost": 823.0}]},
-    {"ticker": "KO", "shares": 7.8571, "lots": [{"id": "KO-1", "date": "2026-10-13", "shares": 7.8571, "cost": 708.0}]},
-    {"ticker": "BAC", "shares": 11.1193, "lots": [{"id": "BAC-1", "date": "2026-10-13", "shares": 11.1193, "cost": 600.0}]}
+    {"ticker": "ORA.PA", "enveloppe": "CTO", "shares": 36, "lots": [
+      {"id": "ORA.PA-1", "date": "2026-10-26", "shares": 26, "cost": 359.62, "frais": 3.42},
+      {"id": "ORA.PA-2", "date": "2026-11-02", "shares": 10, "cost": 121.99, "frais": 1.99}]},
+    {"ticker": "AAPL", "enveloppe": "CTO", "shares": 1, "lots": [
+      {"id": "AAPL-1", "date": "2026-11-03", "shares": 1, "cost": 238.66, "frais": 7.18}]},
+    {"ticker": "TTE.PA", "enveloppe": "PEA", "shares": 7, "lots": [
+      {"id": "TTE.PA-1", "date": "2026-10-26", "shares": 7, "cost": 393.56, "frais": 1.96}]}
   ]
 }

@@ -7,9 +7,9 @@ from _load import ROOT
 
 SKILLS = ["trader-copycat", "trader-news", "trader-budget", "trader-pelosi", "trader-analyst",
           "trader-screener", "trader-risk", "trader-broker", "trader-tax", "trader-alerts",
-          "trader-rebalance"]
-ABOUT = ("11 Claude skills that copy the investors you trust, watch the news and Congress, size every "
-         "trade to your budget, and never place an order without your yes.")
+          "trader-rebalance", "trader-frais", "trader-dirigeants"]
+ABOUT = ("13 skills Claude pour investir depuis la France : les vrais frais de BoursoBank et Fortuneo, "
+         "la fiscalité française, le PEA, les dirigeants qui achètent, et jamais un ordre sans ton oui.")
 # skills that can lead to an order carry the safety block
 ORDER_PATH = ["trader-copycat", "trader-budget", "trader-pelosi", "trader-risk", "trader-broker",
               "trader-tax", "trader-alerts", "trader-rebalance"]
@@ -31,7 +31,7 @@ def every_text_file():
 
 
 class Repo(unittest.TestCase):
-    def test_eleven_skill_folders_at_the_root(self):
+    def test_thirteen_skill_folders_at_the_root(self):
         found = sorted(d for d in os.listdir(ROOT)
                        if os.path.isfile(os.path.join(ROOT, d, "SKILL.md")))
         self.assertEqual(found, sorted(SKILLS))
@@ -52,29 +52,29 @@ class Repo(unittest.TestCase):
         for s in ORDER_PATH:
             _, text = frontmatter(os.path.join(ROOT, s, "SKILL.md"))
             low = " ".join(text.lower().split())
-            self.assertIn("not financial advice", low, s)
-            self.assertIn("yes", low, s)
+            self.assertTrue("not financial advice" in low or "pas un conseil financier" in low, s)
+            self.assertTrue("yes" in low or "oui" in low, s)
 
     def test_plugin_manifest_points_at_the_root_skills(self):
         with open(os.path.join(ROOT, ".claude-plugin", "plugin.json")) as fh:
             plugin = json.load(fh)
-        self.assertEqual(plugin["name"], "trader-skill")
+        self.assertEqual(plugin["name"], "trader-skill-fr")
         self.assertEqual(plugin["skills"], "./")
         self.assertEqual(plugin["description"], ABOUT)
         with open(os.path.join(ROOT, ".claude-plugin", "marketplace.json")) as fh:
             market = json.load(fh)
-        self.assertEqual(market["name"], "trader-skill")
-        self.assertEqual(market["plugins"][0]["name"], "trader-skill")
+        self.assertEqual(market["name"], "trader-skill-fr")
+        self.assertEqual(market["plugins"][0]["name"], "trader-skill-fr")
 
     def test_readme_carries_the_reel_copy(self):
         with open(os.path.join(ROOT, "README.md"), encoding="utf-8") as fh:
             readme = " ".join(fh.read().split())
-        self.assertTrue(readme.startswith("# The Trader skill"))
+        self.assertTrue(readme.startswith("# Trader skill, version française"))
         for line in (ABOUT,
-                     "https://github.com/Jakeschincariol/trader-skill install skill",
-                     "/plugin marketplace add Jakeschincariol/trader-skill",
-                     "/plugin install trader-skill@trader-skill",
-                     "## Fine print"):
+                     "/plugin marketplace add budocay/trader-skill",
+                     "/plugin install trader-skill-fr@trader-skill-fr",
+                     "https://github.com/Jakeschincariol/trader-skill",
+                     "## Les petits caractères"):
             self.assertIn(line, readme)
         for s in SKILLS:
             self.assertIn("/" + s, readme, s)
@@ -88,10 +88,19 @@ class Repo(unittest.TestCase):
             self.assertNotIn("jakeschincariol" + "@" + "gmail.com", text, rel)  # built, so this file passes too
 
     def test_paper_trading_is_the_default(self):
-        with open(os.path.join(ROOT, "trader-budget", "config.example.json")) as fh:
+        for name in ("config.example.json", "config.fr.example.json"):
+            with open(os.path.join(ROOT, "trader-budget", name), encoding="utf-8") as fh:
+                cfg = json.load(fh)
+            self.assertIs(cfg["paper"], True, name)
+            self.assertIs(cfg.get("allow_options", False), False, name)
+
+    def test_french_config_names_a_known_broker(self):
+        with open(os.path.join(ROOT, "trader-budget", "config.fr.example.json"), encoding="utf-8") as fh:
             cfg = json.load(fh)
-        self.assertIs(cfg["paper"], True)
-        self.assertIs(cfg.get("allow_options", False), False)
+        with open(os.path.join(ROOT, "trader-frais", "grilles.json"), encoding="utf-8") as fh:
+            grilles = json.load(fh)
+        self.assertIn(cfg["formule"], grilles["courtiers"][cfg["courtier"]]["formules"])
+        self.assertEqual(cfg["devise"], "EUR")
 
 
 if __name__ == "__main__":

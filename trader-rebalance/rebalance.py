@@ -263,10 +263,34 @@ def report(res):
     for n in res["notes"]:
         lines.append("Note: " + n)
     lines.append("")
-    lines.append("Selling can realize a taxable gain: check trader-tax (lots.py sell) first. Then trader-risk "
+    lines.append("Selling can realize a taxable gain: check trader-tax (lots.py vente) first. Then trader-risk "
                  "checks every order and trader-broker asks you yes or no for each one.")
     lines.append("Education and tooling, not financial advice.")
     return "\n".join(lines)
+
+
+def prices_in_euros(prices, cfg):
+    """With "devise": "EUR", US prices are divided by EURUSD=X (or "eurusd" in the config)."""
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trader-frais", "frais.py")
+    if not os.path.exists(path):
+        raise RebalanceError("\"devise\": \"EUR\" needs trader-frais next to trader-rebalance")
+    spec = importlib.util.spec_from_file_location("trader_frais", path)
+    F = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(F)
+    fx = F.eurusd_de(prices, cfg)
+    out = {}
+    for t, v in prices.items():
+        if t in ("EURUSD=X", "EURUSD"):
+            continue
+        if F.devise(t) == "USD":
+            if not fx:
+                raise RebalanceError("%s is in dollars: add EURUSD=X to trader/prices.json "
+                                     "(alerts.py quote EURUSD=X --write)" % t)
+            out[t] = v / fx
+        else:
+            out[t] = v
+    return out
 
 
 def main(argv=None):
@@ -287,6 +311,8 @@ def main(argv=None):
         pdoc = read_json(a.prices, "prices (trader-alerts: alerts.py quote --holdings --write)")
         prices = {str(k).upper(): float(v) for k, v in (pdoc.get("prices", pdoc) or {}).items()
                   if isinstance(v, (int, float))}
+        if str(cfg.get("devise", "")).upper() == "EUR":
+            prices = prices_in_euros(prices, cfg)
         weights = parse_targets(read_json(a.targets, "targets"), cfg.get("blocked"))
         res = plan(portfolio, prices, weights, cfg, a.band, a.sell_untracked)
         if a.write and res["orders"]:

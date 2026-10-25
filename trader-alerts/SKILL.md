@@ -21,6 +21,21 @@ wants to act, the normal path runs (size, risk, their yes).
 
 `${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
 
+## France : Euronext Paris et l'euro
+
+- `alerts.py clock --place paris` : Euronext Paris est-il ouvert ? Séance de
+  9 h à 17 h 30, heure de Paris ; fermé le 1er janvier, le Vendredi saint, le
+  lundi de Pâques, le 1er mai, les 25 et 26 décembre ; clôture à 14 h 05 les
+  24 et 31 décembre. Les dates 2027 suivent la règle d'Euronext, à confirmer
+  sur live.euronext.com.
+- Les actions françaises gardent leur suffixe Yahoo : `alerts.py quote MC.PA
+  TTE.PA ORA.PA --write` (`.AS` Amsterdam, `.DE` Francfort).
+- Ajoute toujours `EURUSD=X` à la liste quand il y a des actions américaines :
+  trader-budget, trader-risk, trader-rebalance et trader-tax s'en servent pour
+  tout compter en euros.
+- Les cours sont différés de 15 minutes au moins, et l'alerte « opening
+  bell » ne connaît que la Bourse de New York.
+
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/alerts.py" clock                         # NYSE open or closed, next open
 python3 "${CLAUDE_SKILL_DIR}/alerts.py" quote AAPL KO --write         # -> trader/prices.json

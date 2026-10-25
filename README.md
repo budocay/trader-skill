@@ -1,188 +1,162 @@
-# The Trader skill
+# Trader skill, version française
 
-11 Claude skills that copy the investors you trust, watch the news and Congress, size every trade to your budget, and never place an order without your yes.
+13 skills Claude pour investir depuis la France : les vrais frais de BoursoBank et Fortuneo, la fiscalité française, le PEA, les dirigeants qui achètent, et jamais un ordre sans ton oui.
 
-Free, MIT, no signup, no API key. The tools are plain Python that read public
-data: SEC EDGAR, the House Clerk, news feeds.
+Adaptation française du [Trader skill de Jake Schincariol](https://github.com/Jakeschincariol/trader-skill)
+(MIT). Les 11 skills d'origine sont là, plus deux nouveaux, et ceux qui
+touchent à l'argent suivent les règles françaises dès que ta config le dit.
 
-One reverse-engineers the investor you want to copy, straight from their 13F
-filing. Another monitors breaking news on every stock you hold. One manages your
-budget: every dollar sized, a cash buffer kept, no stock over your cap. And the
-craziest one is the Pelosi skill: it reads the stock trades members of Congress
-disclose, the minute the filing posts.
+## Installer
 
-And no trade goes through until you say yes. Nothing in this pack can place an
-order on its own. Paper trading is the default.
-
-## Install
-
-Paste this into Claude:
+Dans Claude Code :
 
 ```
-https://github.com/Jakeschincariol/trader-skill
-
-install skill
+/plugin marketplace add budocay/trader-skill
+/plugin install trader-skill-fr@trader-skill-fr
 ```
 
-Or as a plugin, in Claude Code:
-
-```
-/plugin marketplace add Jakeschincariol/trader-skill
-/plugin install trader-skill@trader-skill
-```
-
-Claude Code namespaces plugin skills, so installed as a plugin they show up as
-`/trader-skill:trader-copycat` and so on. Copy the folders instead if you want
-plain `/trader-copycat`:
+Les skills s'appellent alors `/trader-skill-fr:trader-frais` et ainsi de suite.
+Pour des noms courts (`/trader-frais`), copie les dossiers :
 
 ```bash
-git clone https://github.com/Jakeschincariol/trader-skill.git
+git clone https://github.com/budocay/trader-skill.git
 cp -r trader-skill/trader-* ~/.claude/skills/
 ```
 
-Project-local instead of global: copy the same folders into your repo's
-`.claude/skills/`. No Claude Code at all? Paste any single `SKILL.md` at the
-top of a chat and it runs as a mode. You lose the Python tools, but the method
-works.
+Copie toujours `trader-frais` avec les autres : budget, risque, ordres, fiscalité
+et rééquilibrage s'en servent.
 
-The tools need Python 3.8 or newer. Nothing to pip install. SEC asks every
-script to identify itself: put your name and email in `trader/config.json`
-(`"sec_user_agent": "Your Name you@example.com"`) or in the `SEC_USER_AGENT`
-environment variable.
+Python 3.8 ou plus récent, rien à installer. Puis copie
+`trader-budget/config.fr.example.json` dans `trader/config.json` et règle ton
+courtier (`/trader-frais` t'aide à choisir la formule).
 
-## The eleven
+## Ce qui change pour la France
 
-| command | job | what it does |
+| sujet | version d'origine (États-Unis) | version française |
 | --- | --- | --- |
-| `/trader-copycat` | Reverse Engineer | Reads an investor's 13F-HR on SEC EDGAR and rebuilds their portfolio as weights you can copy, with what they bought, added, trimmed and sold since last quarter. |
-| `/trader-news` | News Monitor | Watches headlines and SEC filings (8-Ks) for every stock you hold and flags what touches them. |
-| `/trader-budget` | Budget Manager | Sizes every position to your budget, keeps a cash buffer and caps any one stock. |
-| `/trader-pelosi` | Pelosi Tracker | Reads Congress's stock-trade disclosures (House PTRs) as soon as they post, turns each PDF into clean rows and alerts you once per new filing. |
-| `/trader-analyst` | Earnings Analyst | Pulls each company's reported numbers from SEC XBRL (revenue, net income, diluted EPS, margins, growth) and its latest earnings release. |
-| `/trader-screener` | Stock Screener | Screens companies against your own rules and ranks what passes. |
-| `/trader-risk` | Risk Manager | Checks every proposed order against your limits and blocks anything over them. |
-| `/trader-broker` | Order Executor | Turns an approved order into the exact ticket your brokerage connector receives, and records your yes. It never places anything itself. |
-| `/trader-tax` | Tax Optimizer | Tracks cost-basis lots, gains and losses, tax-loss harvesting candidates and wash sales. |
-| `/trader-alerts` | Price Alerts | Rings when a price target, a stop or the opening bell hits, with the real NYSE calendar. |
-| `/trader-rebalance` | Rebalancer | Brings the portfolio back to its target weights when it drifts past your band. |
+| prix de revient | lots FIFO, court ou long terme | **prix moyen pondéré** (art. 150-0 D du CGI), frais d'achat compris |
+| impôt | règles fédérales américaines, « wash sale » | **flat tax 31,4 %** depuis 2026 (12,8 + 18,6), option barème, moins-values reportables 10 ans, cases 3VG / 3VH |
+| enveloppes | aucune | **CTO et PEA** : éligibilité, plafond de courtage 0,5 %, retrait avant ou après 5 ans |
+| frais | aucun (Alpaca sans commission) | **BoursoBank et Fortuneo** formule par formule, **TTF 0,4 %** sur 121 sociétés, frais de change |
+| courtier | Alpaca ou IBKR, passe l'ordre après ton oui | BoursoBank et Fortuneo n'ont pas de connecteur : **le ticket te dit quoi saisir**, Claude ne passe rien |
+| actions entières | fractions d'action | ces deux courtiers n'achètent **que des actions entières** |
+| ETF | tous | **ETF américains bloqués** (PRIIPs : pas de document d'informations clés) |
+| compte à l'étranger | | rappel du **formulaire 3916-bis** (1 500 € d'amende par compte et par an) |
+| initiés | Form 4, Congrès | **déclarations des dirigeants à l'AMF**, publiées sous 3 jours ouvrés |
+| horloge | NYSE | **Euronext Paris** en plus, heure de Paris |
+| devise | dollars | **euros**, cours américains convertis avec EURUSD |
 
-## How to use it
+## Les treize
 
-Everything lands in a `trader/` folder in your project, and each skill reads
-what the last one wrote:
+| commande | rôle | ce qu'elle fait |
+| --- | --- | --- |
+| `/trader-frais` | Frais et garde-fous | Nouveau. Ce qu'un ordre coûte vraiment chez BoursoBank ou Fortuneo (courtage, TTF, change, plafond PEA, minimum), la hausse nécessaire pour rentrer dans ses frais, l'éligibilité PEA, les ETF interdits. |
+| `/trader-dirigeants` | Suivi des dirigeants | Nouveau. Les achats et ventes déclarés à l'AMF par les dirigeants des sociétés cotées, sans doublon, avec les « achats groupés » et ce qui touche tes titres. |
+| `/trader-tax` | Fiscalité française | Réécrit. PMP, plus-values latentes par enveloppe, coût d'une vente en flat tax, bilan annuel, barème, moins-values reportables, retrait du PEA. |
+| `/trader-budget` | Budget | Répartit ton budget en actions entières, en euros, en écartant ce qui coûte trop en frais ou passe sous le minimum du courtier. |
+| `/trader-risk` | Contrôle de risque | Bloque ce qui dépasse tes limites, plus : titre non éligible au PEA, ETF américain, ordre en montant chez un courtier sans fractions, frais trop lourds. |
+| `/trader-broker` | Tickets d'ordre | Un ticket en français par ordre, ton « oui » mot pour mot, puis tu saisis l'ordre toi-même (ou rien, en simulation). Enregistre l'exécution au PMP. |
+| `/trader-alerts` | Alertes de cours | Seuils, stops, variations ; horloge NYSE et Euronext Paris ; cours des actions françaises (`MC.PA`) et du taux EURUSD. |
+| `/trader-rebalance` | Rééquilibrage | Ramène le portefeuille à ses poids cibles, en euros. |
+| `/trader-copycat` | Copie d'un investisseur | Reconstitue le portefeuille d'un fonds américain depuis son 13F (SEC). |
+| `/trader-news` | Actualité | Titres Yahoo et 8-K de la SEC sur tes actions (sociétés américaines). |
+| `/trader-pelosi` | Congrès américain | Les transactions déclarées par les élus de la Chambre des représentants. |
+| `/trader-analyst` | Résultats | Chiffres publiés à la SEC (sociétés américaines). |
+| `/trader-screener` | Filtre | Classe des sociétés selon tes propres règles. |
+
+Les cinq derniers lisent des sources américaines (SEC, Chambre des
+représentants) et parlent anglais : ils marchent comme dans la version
+d'origine.
+
+## Comment ça s'enchaîne
 
 ```
-copycat -> budget -> risk -> broker            (copy an investor)
-news / pelosi / alerts                          (watch, on a schedule)
-analyst -> screener -> budget -> risk -> broker (pick your own)
-rebalance / tax -> risk -> broker               (maintain)
+trader-frais (régler son courtier une fois)
+copycat ou dirigeants -> budget -> risk -> broker -> tax
+alerts / news / dirigeants                    (à surveiller, sur rendez-vous)
+rebalance / tax -> risk -> broker             (entretien)
 ```
 
-An example: copying Berkshire Hathaway with $5,000.
+Tout est écrit dans un dossier `trader/` de ton projet, et chaque skill lit
+ce que le précédent a écrit.
 
-1. **`/trader-copycat`** "copy Berkshire's top 5". It finds Berkshire Hathaway
-   (CIK 1067983), downloads its latest 13F-HR (Q2 2026, filed 2026-08-14) and
-   reads every row: Apple 22.04 % of the reported portfolio, American Express
-   17.14 %, Alphabet 12.62 % (both share classes), Coca-Cola 10.86 %, Bank of
-   America 9.20 %. Since last quarter: new D.R. Horton, sold out of
-   Constellation Brands. It writes `trader/targets.json`, the top 5
-   renormalised: 30.67 / 23.85 / 17.56 / 15.11 / 12.80 %.
-2. **`/trader-budget`** with a $5,000 budget, a 10 % cash buffer and a 25 %
-   cap: Apple $1,250 (capped), American Express $1,119, Alphabet $823,
-   Coca-Cola $708, Bank of America $600, $500 cash, $0 idle. It writes
-   `trader/orders.json` as proposals.
-3. **`/trader-risk`** checks all five against your limits: blocked tickers,
-   order size, position size after the fill, the cash buffer, no options or
-   margin. PASS or BLOCK, with the reason.
-4. **`/trader-broker`** shows you each ticket: "Buy $1,250 of AAPL, market,
-   day". You type yes for that exact order. Claude calls your brokerage
-   connector (Alpaca's MCP server, paper account by default), and Claude's own
-   "Allow once / Deny" card asks you one more time.
-5. On a schedule: **`/trader-news`** flags headlines on what you hold,
-   **`/trader-pelosi`** alerts you when a new disclosure posts, and
-   **`/trader-alerts`** rings on your price levels.
-6. Every quarter: **`/trader-copycat`** diffs the new 13F against the last one,
-   and **`/trader-rebalance`** proposes the trades to match it again.
+## Exemple honnête : 10 €, puis 300 €
 
-## The tools
+**Avec 10 € sur un PEA chez Fortuneo Starter**, `/trader-budget` n'achète
+rien : une action Orange coûte 13,69 € et une TotalEnergies 56 €, et ces
+courtiers n'achètent pas de fraction d'action. Il le dit, action par action.
 
-All standard-library Python. The data tools read public endpoints and are
-polite about it (SEC's rule: identify yourself, at most 10 requests a second).
+`frais.py comparer 10` montre aussi pourquoi les petits ordres coûtent cher :
+1,99 € chez BoursoBank Découverte (20 % de l'ordre, et sous son minimum de
+20 €), 4,90 € chez Fortuneo Progress, 0,04 € chez Fortuneo Starter (0,35 %,
+et le premier ordre du mois jusqu'à 500 € est gratuit).
+
+**Avec 300 € sur un CTO chez BoursoBank Découverte**, cible Orange 40 %,
+TotalEnergies 30 %, Apple 30 % :
+
+| | |
+| --- | --- |
+| Orange | 21 actions, 287,49 €, frais 3,14 € (1,99 € de courtage + 1,15 € de TTF) |
+| Apple | écartée : une action vaut 231,48 € (250 $ à 1,08), plus que sa part |
+| TotalEnergies | écartée : 2 actions coûteraient 2,44 € de frais, 2,18 % de l'ordre, au-dessus du plafond de 2 % |
+
+`/trader-risk` vérifie, `/trader-broker` affiche « ACHAT de 21 actions
+ORA.PA, ordre au marché », tu réponds « oui », tu le saisis dans l'appli (ou
+rien, en simulation), et `/trader-tax` suit ton prix moyen pondéré.
+
+## Les outils
 
 ```bash
-python3 trader-copycat/edgar13f.py find buffett                        # a filer's CIK
-python3 trader-copycat/edgar13f.py filings 1067983                     # its 13F-HR filings
-python3 trader-copycat/edgar13f.py --help                              # holdings, diff, copy
-python3 trader-news/news.py --tickers AAPL AXP GOOGL KO BAC --hours 24 # headlines + 8-Ks
-python3 trader-pelosi/ptr.py index --member pelosi                     # her PTRs this year
-python3 trader-pelosi/ptr.py --help                                    # new, fetch, parse
-python3 trader-analyst/facts.py AAPL                                   # quarters, growth, EPS
-python3 trader-screener/screen.py trader/metrics.json --rules trader/rules.json
-python3 trader-budget/size.py --budget 5000 --write                    # -> trader/orders.json
-python3 trader-risk/check.py                                           # PASS / BLOCK per order
-python3 trader-broker/ticket.py show                                   # the tickets, READY or not
-python3 trader-tax/lots.py harvest --min-loss 100                      # with wash-sale checks
-python3 trader-alerts/alerts.py clock                                  # NYSE open or closed
-python3 trader-rebalance/rebalance.py --band 5                         # the drift table
+python3 trader-frais/frais.py comparer 10                         # toutes les formules pour 10 €
+python3 trader-frais/frais.py ordre MC.PA 500 --isin FR0000121014  # frais d'un ordre
+python3 trader-frais/frais.py pea NL00150001Q9                     # éligible au PEA ?
+python3 trader-budget/size.py --write                              # -> trader/orders.json
+python3 trader-risk/check.py                                       # PASS / BLOCK par ordre
+python3 trader-broker/ticket.py show                               # les tickets
+python3 trader-tax/lots.py rapport                                 # PMP et plus-values latentes
+python3 trader-tax/lots.py annee 2026 --tmi 11                     # flat tax ou barème
+python3 trader-tax/lots.py pea --retrait 2000                      # coût d'un retrait du PEA
+python3 trader-dirigeants/dirigeants.py signaux --jours 30         # achats des dirigeants
+python3 trader-alerts/alerts.py clock --place paris                # Euronext ouvert ?
+python3 trader-alerts/alerts.py quote ORA.PA AAPL EURUSD=X --write # cours
+python3 trader-copycat/edgar13f.py find buffett                    # un fonds américain
 ```
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-The tests run offline, on small fixtures cut from the real filings: Berkshire's
-Q1 and Q2 2026 information tables, the House Clerk's 2026 index, real PTR text,
-real XBRL facts and feeds.
+Les tests tournent hors ligne.
 
-## Fine print
+## Les petits caractères
 
-**Not financial advice.** This is software that reads public data and does
-arithmetic. It does not know your situation, it cannot see the future, and
-copying an investor does not copy their results. You can lose money. Decide for
-yourself, and talk to a licensed professional if you need advice.
+**Pas un conseil financier ni fiscal.** Ce sont des calculs sur des données
+publiques et sur tes propres chiffres. Ils ne connaissent pas ta situation et
+ne prédisent rien. Tu peux perdre de l'argent. Ton IFU, ton courtier ou un
+professionnel font foi.
 
-**No trade goes through until you say yes.** Only `/trader-broker` can lead to
-an order, and only after `/trader-risk` passes that exact order and you type yes
-for it in the chat. Set your brokerage tool to "Needs approval" in Claude
-(Customize, Connectors, tool permissions), never "Always allow", so Claude's
-own "Allow once / Deny" card is a second check. No options, margin, short
-selling or leverage unless you turn them on.
+**Aucun ordre sans ton oui.** Seul `/trader-broker` mène à un ordre, après que
+`/trader-risk` l'a validé et que tu as répondu « oui » pour cet ordre précis.
+Avec BoursoBank ou Fortuneo, c'est toi qui le saisis.
 
-**Paper first.** `"paper": true` is the default in `config.example.json`, and
-Alpaca's MCP server defaults to its paper account. Keys live in environment
-variables, never in the chat.
+**Simulation d'abord.** `"paper": true` est la valeur par défaut : rien n'est
+saisi chez le courtier, les ordres sont enregistrés comme s'ils étaient passés.
 
-**13F data is old and partial.** Funds file 45 days after each quarter ends, and
-a 13F lists long positions in US-listed stocks and a few related securities:
-no shorts, no cash, no foreign-listed shares. You see what they held, not what they hold today.
+**Les grilles de frais changent.** BoursoBank : brochure applicable au
+5 octobre 2026. Fortuneo : grilles relevées entre juin et octobre 2026 ; le
+tarif Starter sur les actions américaines diffère selon les sources. La liste
+TTF est celle de 2026 et change chaque 1er janvier. Vérifie avant un vrai ordre.
 
-**Congress's trades are public, not inside information.** Members must disclose
-trades over $1,000 within 45 days (the STOCK Act). The Pelosi skill reads those
-public filings the minute they post, with the amounts as the ranges they are
-filed in. It has no access to anything that is not public.
+**Ce que la fiscalité ne couvre pas.** Titres achetés avant 2018 et leurs
+abattements, dividendes, assurance-vie, PEA-PME, non-résidents.
 
-**The data comes from free public sources.** SEC EDGAR, the House Clerk, news
-RSS and Yahoo Finance's chart endpoint (unofficial, and it can change). Check
-anything that matters against your broker before you act on it.
+**Compte à l'étranger.** Un compte réel chez Alpaca ou Interactive Brokers
+(Irlande) se déclare chaque année sur le formulaire 3916-bis, même vide.
 
-**Taxes.** `/trader-tax` does the arithmetic on lots and wash-sale windows. It
-is not tax advice.
+**Les données publiques.** SEC EDGAR, Chambre des représentants, AMF (BDIF),
+Yahoo Finance (non officiel, différé). Un 13F a au moins 45 jours de retard ;
+une déclaration de dirigeant, jusqu'à 3 jours ouvrés. Ce ne sont jamais des
+informations privilégiées.
 
-## Files
-
-```
-trader-copycat/    SKILL.md, edgar13f.py, filers.json, share_classes.json, targets.example.json
-trader-news/       SKILL.md, news.py
-trader-budget/     SKILL.md, size.py, config.example.json, targets.example.json
-trader-pelosi/     SKILL.md, ptr.py
-trader-analyst/    SKILL.md, facts.py, metrics.example.json
-trader-screener/   SKILL.md, screen.py, rules.example.json
-trader-risk/       SKILL.md, check.py
-trader-broker/     SKILL.md, ticket.py, claude_desktop_config.example.json
-trader-tax/        SKILL.md, lots.py, portfolio.example.json
-trader-alerts/     SKILL.md, alerts.py, alerts.example.json
-trader-rebalance/  SKILL.md, rebalance.py
-tests/             unittest suite + offline fixtures
-```
-
-MIT. Made by [Jake Schincariol](https://opusjake.ai).
+MIT. Version d'origine par [Jake Schincariol](https://github.com/Jakeschincariol/trader-skill),
+adaptation française par budocay.

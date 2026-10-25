@@ -27,6 +27,18 @@ What blocks an order:
                 placed today (trader/state/broker.json)
   daily limit   more than max_orders_per_day orders placed today
 
+French rules (trader-frais), when trader/config.json names a "courtier",
+an "enveloppe" or "devise": "EUR":
+  pea           a stock that cannot go in a PEA (US, UK, non-EU ISIN) on a
+                PEA order ("enveloppe" on the order, else in the config)
+  priips        a US-listed ETF (no European key information document)
+  fractionné    a notional order at a broker that only buys whole shares
+  frais         the order is under the broker's minimum, or its fees
+                (brokerage + TTF + exchange) are over "max_frais_pct" (2)
+  cash          the buffer check counts the fees too
+With "devise": "EUR", US prices are converted with EURUSD=X from prices.json
+(or "eurusd" in the config) so every amount is in euros.
+
 Exit code 0 when every order passes, 1 when any order is blocked.
 The verdicts go to trader/state/risk.json with a fingerprint of each order,
 so trader-broker only shows an order as ready if THIS exact order passed today.
@@ -35,6 +47,7 @@ so trader-broker only shows an order as ready if THIS exact order passed today.
 import argparse
 import datetime
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -52,8 +65,21 @@ ALPACA_FIELDS = ("symbol", "side", "qty", "notional", "type", "time_in_force", "
 TYPES = {"market", "limit", "stop", "stop_limit", "trailing_stop"}
 TIFS = {"day", "gtc", "opg", "cls", "ioc", "fok"}
 OCC = re.compile(r"^[A-Z]{1,6}\d{6}[CP]\d{8}$")
-TICKER = re.compile(r"^[A-Z]{1,5}([.\-][A-Z]{1,2})?$")
+TICKER = re.compile(r"^[A-Z0-9]{1,6}([.\-][A-Z]{1,2})?$")
+FINGERPRINT_EXTRA = ("enveloppe",)
 CENT = 0.005
+CURRENCY = {"symbol": "$"}
+
+
+def frais_module():
+    """trader-frais/frais.py next to this skill, or None if it is not installed."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trader-frais", "frais.py")
+    if not os.path.exists(path):
+        return None
+    spec = importlib.util.spec_from_file_location("trader_frais", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 class RiskError(Exception):
@@ -74,7 +100,7 @@ def read_json(path, what, required=True):
 
 def fingerprint(order):
     """Same function in trader-broker/ticket.py: the exact order that was checked."""
-    core = {k: order[k] for k in ALPACA_FIELDS if k in order and order[k] is not None}
+    core = {k: order[k] for k in ALPACA_FIELDS + FINGERPRINT_EXTRA if k in order and order[k] is not None}
     blob = json.dumps(core, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
@@ -87,6 +113,9 @@ def _f(x):
 
 
 def money(x):
+    if CURRENCY["symbol"] == "€":
+        s = "{:,.2f}".format(float(x)).replace(".00", "")
+        return s.replace(",", " ").replace(".", ",") + " €"
     return "$" + "{:,.2f}".format(float(x)).replace(".00", "")
 
 
@@ -136,6 +165,23 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None):
     c.update(cfg or {})
     prices = {str(k).upper(): float(v) for k, v in (prices or {}).items() if _f(v)}
     today = today or datetime.date.today().isoformat()
+    french = bool(c.get("courtier") or c.get("enveloppe") or str(c.get("devise", "")).upper() == "EUR")
+    F = frais_module() if french else None
+    if french and F is None:
+        raise RiskError("the config uses French rules but trader-frais is not installed next to trader-risk")
+    broker = None
+    if F and c.get("courtier"):
+        broker = F.grilles()["courtiers"].get(str(c["courtier"]).lower())
+        if broker is None:
+            raise RiskError("courtier %r is not in trader-frais/grilles.json" % c["courtier"])
+    eurusd = F.eurusd_de(prices, c) if F else None
+    if F and str(c.get("devise", "")).upper() == "EUR":
+        for t in list(prices):
+            if F.devise(t) == "USD" and t not in ("EURUSD=X", "EURUSD"):
+                if eurusd:
+                    prices[t] = prices[t] / eurusd
+                else:
+                    del prices[t]
     acct, top_warn = account(c, portfolio, prices)
     blocked = {str(b).upper() for b in c.get("blocked") or []}
     done_today = placed_today(state, today)
@@ -201,6 +247,25 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None):
         if sym in blocked:
             reasons.append("blocked: %s is on your blocked list" % sym)
 
+        # French rules: PEA, PRIIPs, whole shares
+        env = str(o.get("enveloppe") or c.get("enveloppe") or "CTO").upper()
+        if F and sym:
+            bad, why = F.etf_us_interdit(sym, o.get("isin"), o.get("type_titre"))
+            if bad and side == "buy":
+                reasons.append("priips: " + why)
+            if env == "PEA" and side == "buy":
+                ok, why = F.eligible_pea(sym, o.get("isin"), o.get("type_titre"))
+                if ok == "non":
+                    reasons.append("pea: " + why)
+                elif ok == "a_verifier":
+                    warns.append("PEA : " + why)
+            if broker is not None and notional is not None and not broker.get("fractionne"):
+                reasons.append("fractionné : %s n'achète que des actions entières ; donne une quantité "
+                               "(qty) au lieu d'un montant" % broker["nom"])
+            if F.devise(sym) == "USD" and str(c.get("devise", "")).upper() == "EUR" and not eurusd:
+                warns.append("pas de taux EURUSD : ajoute EURUSD=X à trader/prices.json pour chiffrer "
+                             "l'ordre en euros")
+
         # dollar value of the order
         ref = None
         if typ in ("limit", "stop_limit"):
@@ -227,6 +292,29 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None):
                 reasons.append("size: %s is over your %s max order"
                                % (money(value), money(c["max_order_usd"])))
 
+        # broker fees (trader-frais)
+        fees = 0.0
+        fee_info = None
+        if broker is not None and value is not None and sym:
+            try:
+                fee_info = F.frais_ordre(c["courtier"], c.get("formule"), sym, value,
+                                         "achat" if side == "buy" else "vente", env, o.get("isin"),
+                                         eurusd, False, o.get("type_titre"))
+            except F.FraisErreur as e:
+                reasons.append("frais : " + str(e))
+            if fee_info:
+                fees = fee_info["total"]
+                if fee_info["sous_minimum"] and side == "buy":
+                    reasons.append("frais : %s est sous le minimum d'ordre de %s chez %s"
+                                   % (money(value), money(fee_info["minimum_ordre"]), fee_info["courtier"]))
+                limit_pct = float(c.get("max_frais_pct", 2))
+                if fee_info["pct"] > limit_pct + 1e-9:
+                    reasons.append("frais : %s de frais, soit %s %% de l'ordre, au-dessus de ton plafond de %s %%"
+                                   % (money(fees), ("%.2f" % fee_info["pct"]).replace(".", ","),
+                                      _pct(limit_pct).replace(".", ",")))
+                for n in fee_info["notes"]:
+                    warns.append("frais : " + n)
+
         # account effects, simulated in order
         cash = acct["cash"]
         held = acct["shares"].get(sym, 0.0)
@@ -234,7 +322,7 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None):
         total = cash + sum(acct["values"].values())
         buffer_usd = total * float(c.get("cash_buffer_pct") or 0) / 100.0
         if value is not None and side == "buy":
-            after_cash = cash - value
+            after_cash = cash - value - fees
             if after_cash < -CENT and not c.get("allow_margin"):
                 reasons.append("cash: needs %s but only %s cash; that would be margin (borrowed money)"
                                % (money(value), money(cash)))
@@ -274,12 +362,12 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None):
         verdict = "BLOCK" if reasons else "PASS"
         if verdict == "PASS" and value is not None:
             if side == "buy":
-                acct["cash"] -= value
+                acct["cash"] -= value + fees
                 acct["values"][sym] = acct["values"].get(sym, 0.0) + value
                 if ref:
                     acct["shares"][sym] = held + value / ref
             else:
-                acct["cash"] += value
+                acct["cash"] += value - fees
                 acct["values"][sym] = max(acct["values"].get(sym, 0.0) - value, 0.0)
                 if qty is not None:
                     acct["shares"][sym] = held - _f(qty)
@@ -289,6 +377,8 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None):
             "index": i, "symbol": sym, "side": side,
             "amount": money(_f(notional) or 0) if notional is not None else ("%s shares" % qty),
             "value_usd": round(value, 2) if value is not None else None,
+            "fees": fee_info["total"] if fee_info else None,
+            "enveloppe": env if F else None,
             "fingerprint": fingerprint(o), "verdict": verdict,
             "reasons": reasons, "warnings": warns,
         })
@@ -356,6 +446,8 @@ def main(argv=None):
         if not isinstance(orders, list) or not orders:
             raise RiskError("no orders in %s" % a.orders)
         cfg = read_json(a.config, "config", required=False) or {}
+        if str(cfg.get("devise", "")).upper() == "EUR":
+            CURRENCY["symbol"] = "€"
         portfolio = read_json(a.portfolio, "portfolio", required=False)
         pdoc = read_json(a.prices, "prices", required=False) or {}
         prices = pdoc.get("prices", pdoc) if isinstance(pdoc, dict) else {}

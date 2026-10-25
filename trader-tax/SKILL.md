@@ -1,101 +1,104 @@
 ---
 name: trader-tax
 description: >-
-  Tax Optimizer. Tracks cost-basis lots for every position (FIFO, highest
-  cost first, or specific lots), shows unrealized gains and losses by lot with
-  short or long term, works out what a sale would realize before you sell,
-  finds tax-loss harvesting candidates over a loss threshold, checks the wash
-  sale rule (30 days before and after, GOOG and GOOGL as one family), and
-  writes harvest sells only as proposals. Not tax advice. Use when the user
-  says "what are my gains", "cost basis", "tax lots", "tax-loss harvest",
-  "what would selling cost me in tax", "short or long term", "wash sale", or
-  before selling anything.
+  Fiscalité française. Calcule le prix moyen pondéré (PMP) de chaque ligne,
+  frais d'achat compris, sépare compte-titres (CTO) et PEA, dit ce qu'une
+  vente réaliserait comme plus- ou moins-value et ce qu'elle coûterait en flat
+  tax (31,4 % depuis 2026), fait le bilan de l'année avec l'imputation des
+  moins-values reportables sur 10 ans, compare flat tax et barème selon ta
+  tranche, simule un retrait du PEA avant ou après 5 ans, et repère les
+  moins-values latentes à réaliser. Pas un conseil fiscal. À utiliser quand
+  l'utilisateur dit « mes plus-values », « combien d'impôt si je vends »,
+  « flat tax », « PFU », « barème », « PMP », « prix de revient »,
+  « moins-values », « déclaration 2074 / 2042 C », « IFU », « PEA »,
+  « retrait du PEA », « tax-loss harvesting », ou avant toute vente.
 argument-hint: "[ticker]"
 ---
 
-# trader-tax
+# trader-tax (France)
 
-The Tax Optimizer does the arithmetic on the user's lots so nobody sells
-blind. It never decides what is right for the user's taxes. **This is not tax
-advice**: a tax professional decides what applies to them. Say that once,
-early, in every answer that uses this skill.
+Fait l'arithmétique fiscale sur les positions de l'utilisateur pour qu'il ne
+vende jamais à l'aveugle. Ne décide jamais à sa place. **Ce n'est pas un
+conseil fiscal** : dis-le une fois, tôt, dans chaque réponse qui utilise ce
+skill. Si son courtier est en France, son IFU fait foi.
 
-`${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
+`${CLAUDE_SKILL_DIR}` ci-dessous est le dossier de ce skill.
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/lots.py" report --lots              # every lot, gain or loss, term
-python3 "${CLAUDE_SKILL_DIR}/lots.py" sell KO 2 --price 90.11    # what a sale would realize (FIFO)
-python3 "${CLAUDE_SKILL_DIR}/lots.py" sell KO 2 --method specific --lots KO-2
-python3 "${CLAUDE_SKILL_DIR}/lots.py" harvest --min-loss 100     # candidates, with wash-sale checks
-python3 "${CLAUDE_SKILL_DIR}/lots.py" harvest --min-loss 100 --write
-python3 "${CLAUDE_SKILL_DIR}/lots.py" wash KO                    # is buying KO today a wash sale?
+python3 "${CLAUDE_SKILL_DIR}/lots.py" rapport                      # PMP et +/- latentes, CTO et PEA
+python3 "${CLAUDE_SKILL_DIR}/lots.py" rapport --lignes             # avec chaque achat
+python3 "${CLAUDE_SKILL_DIR}/lots.py" vente ORA.PA 10 --prix 14.20 --frais 1.99
+python3 "${CLAUDE_SKILL_DIR}/lots.py" vente AAPL 1 --prix 270 --taux-change 1.08 --enregistrer
+python3 "${CLAUDE_SKILL_DIR}/lots.py" annee 2026 --tmi 11          # bilan, flat tax ou barème
+python3 "${CLAUDE_SKILL_DIR}/lots.py" moins-values                 # stock reportable, expirations
+python3 "${CLAUDE_SKILL_DIR}/lots.py" moins-values --ajouter 2024 350
+python3 "${CLAUDE_SKILL_DIR}/lots.py" recolte --min-perte 100      # moins-values latentes du CTO
+python3 "${CLAUDE_SKILL_DIR}/lots.py" pea --retrait 2000           # coût d'un retrait du PEA
 ```
 
-## What it reads and writes
+## Ce qu'il lit et écrit
 
-| file | what |
+| fichier | contenu |
 | --- | --- |
-| `trader/portfolio.json` | positions with lots: `{"id", "date", "shares", "cost"}` (cost = total basis); shape: `portfolio.example.json` here |
-| `trader/prices.json` | current prices (trader-alerts: `alerts.py quote --holdings --write`) |
-| `trader/orders.json` | planned buys count for wash sales; `harvest --write` replaces it with sell proposals |
-| `trader/state/tax.json` | the realized sales it logs with `sell --record` |
+| `trader/portfolio.json` | les positions, par titre et par enveloppe, avec leurs achats (`cost` en euros, frais compris). trader-broker l'écrit (`ticket.py fill`) ; `portfolio.example.json` ici montre le format |
+| `trader/prices.json` | les cours (trader-alerts). Ajoute `EURUSD=X` pour convertir les actions américaines |
+| `trader/config.json` | `pea_ouverture`, `pea_versements`, `pea_jeune` (plafond 20 000 €), `pea_liquidites` |
+| `trader/state/fiscalite.json` | les ventes enregistrées et les moins-values des années passées |
+| `trader/orders.json` | `recolte --ecrire` y met des propositions de vente |
 
-Lots come from the fills trader-broker records (`ticket.py fill`), or from the
-user's broker statement. If a position has shares but no lots, ask for the
-purchase dates and costs. Never invent a cost basis.
+## Les règles appliquées
 
-## The rules it applies (US federal, arithmetic only)
+- **Prix moyen pondéré** (art. 150-0 D, 3 du CGI) : le prix d'acquisition d'une
+  vente est la moyenne pondérée de tous les titres identiques du même compte,
+  frais d'achat compris. Les frais de vente viennent en déduction. Une vente
+  ne change pas le PMP de ce qui reste. Pas de FIFO, pas de choix des lots.
+- **Pas de court ou long terme** au PFU, et **pas de règle « wash sale »**.
+- **Flat tax (PFU)** : 12,8 % d'impôt + 18,6 % de prélèvements sociaux =
+  **31,4 %** pour les gains réalisés depuis le 1er janvier 2026 (30 % avant).
+  Option globale possible pour le barème (case 2OP) : elle vaut pour tous les
+  revenus de capitaux de l'année. `--tmi` compare les deux.
+- **Moins-values** : imputées sur les plus-values de l'année, puis reportables
+  sur les 10 années suivantes, les plus anciennes d'abord.
+- **PEA** : rien à payer tant que l'argent reste dedans. Retrait avant 5 ans :
+  31,4 % sur la part de gain du retrait et, en principe, clôture du plan.
+  Après 5 ans : 18,6 % de prélèvements sociaux seulement. Plafond de
+  versements : 150 000 € (PEA Jeune : 20 000 €).
+- Les montants vont dans la **déclaration 2042 C** : plus-value nette en case
+  3VG, moins-value nette en case 3VH. Le formulaire 2074 détaille le calcul
+  quand l'IFU ne suffit pas.
 
-- **Term**: long term if sold more than one year after the purchase date,
-  otherwise short term. `report --lots` shows the date each lot turns long term.
-- **Lot methods**: `fifo` (oldest first, what most brokers do by default),
-  `hifo` (highest cost first) and `specific` (named lots). The order sent to
-  the broker does not carry lot ids: to sell specific lots the user must
-  choose them in the broker's own tax-lot setting, or the broker uses its
-  default method.
-- **Wash sale**: a loss is disallowed to the extent the same or a
-  substantially identical stock is bought within 30 days before or after the
-  sale. The tool checks the other lots still held, planned buys in
-  `trader/orders.json` and the loss sales it has logged. It cannot see an IRA,
-  a spouse's account or another broker, and those count too. Say so.
+## Étapes
 
-## Steps
+1. Lance `rapport` et montre le tableau : par enveloppe, quantité, PMP,
+   cours, valeur, plus- ou moins-value latente.
+2. Avant toute vente, lance `vente TICKER QUANTITÉ --prix P --frais F` (avec
+   `--taux-change` pour un prix en dollars) et montre : la plus-value au PMP
+   et l'effet sur la flat tax de l'année. Pour un ordre de trader-rebalance,
+   fais-le pour chaque vente.
+3. Une vente **exécutée** s'enregistre avec `--enregistrer`, au prix réel et
+   aux frais réels de l'avis d'opéré. Jamais une simulation.
+4. Pour le bilan : `annee` (avec `--tmi` si l'utilisateur donne sa tranche).
+   Les moins-values des années avant ce suivi s'ajoutent une fois avec
+   `moins-values --ajouter ANNÉE MONTANT` (sa déclaration de l'an dernier les
+   donne).
+5. `recolte` en fin d'année : montre les moins-values latentes du CTO et
+   l'économie possible. Pas de règle « wash sale » en France, mais un
+   aller-retour fait uniquement pour l'impôt peut être contesté (abus de
+   droit) : dis-le. `--ecrire` met les ventes dans `trader/orders.json`
+   comme propositions, que trader-risk puis trader-broker traitent.
 
-1. Refresh prices, then `lots.py report --lots`. Show gains and losses by
-   stock, and which lots are short or long term.
-2. Before any sell (rebalance, a stop, a change of mind), run `lots.py sell`
-   with the planned shares and method and show what it would realize.
-3. For harvesting: `lots.py harvest --min-loss 100` (and `--min-pct` if the
-   user wants a percent threshold). For each candidate show the estimated
-   loss, short and long term split, any wash-sale conflict, and the first day
-   they could buy it back. Candidates with a conflict are not proposed.
-4. Only if the user wants proposals: `harvest --write`, then `/trader-risk`,
-   then `/trader-broker`, one yes per order.
-5. After a sale fills, `lots.py sell ... --record` updates the lots and logs
-   the realized result for the year.
+## Ce qu'il ne fait jamais
 
-## Example: the reel's portfolio
+Il ne passe aucun ordre, ne déclare rien, ne choisit pas entre flat tax et
+barème à la place de l'utilisateur, et ne couvre pas : les titres achetés
+avant 2018 et leurs abattements pour durée de détention, l'assurance-vie, les
+dividendes, le PEA-PME, les situations de non-résident.
 
-The copy portfolio bought on 2026-10-13 (AAPL $1,250, AXP $1,119, GOOGL $823,
-KO $708, BAC $600) has one lot per stock, all short term until 2027-10-14.
-If BAC later trades below its $600 basis, `harvest --min-loss 25` lists the
-BAC-1 lot with its loss and "do not buy BAC again before" a date 31 days
-after the sale. If the user also has a BAC buy planned in `trader/orders.json`,
-it flags a wash sale instead of proposing the sell.
+## Sécurité
 
-## What it never does
-
-It never files anything, never gives a tax rate or a tax bill, never tells
-the user what they owe, never places an order, and never proposes a harvest
-that it can see would be a wash sale.
-
-## Safety
-
-- Not tax advice, and education and tooling, not financial advice. Check with a tax professional.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+- Pas un conseil fiscal ni financier. Ce sont des calculs sur les chiffres de l'utilisateur ;
+  un professionnel ou son IFU fait foi.
+- Les ventes qu'il propose passent par trader-risk, puis trader-broker demande un « oui »
+  explicite pour chaque ordre. Rien ne part sans ce oui.
+- Paper trading (simulation) par défaut : `"paper": true` dans la config.
+- Not financial advice: the same rule in English, for the other skills of this pack.

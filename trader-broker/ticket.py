@@ -25,6 +25,15 @@ things around the one moment that matters, your yes:
     python3 ticket.py log
 
 Everything is written to trader/state/broker.json (append only).
+
+French brokers ("courtier": "boursobank" or "fortuneo" in trader/config.json)
+have no order connector: the ticket tells you what to type in your broker's
+app, with the estimated fees, and Claude never places it. A "oui" counts like
+a "yes". With French rules, a sell recorded by `fill` keeps the weighted
+average cost (prix moyen pondéré, art. 150-0 D du CGI) instead of relieving the
+oldest lot, buys add their fees to the cost, and --taux-change converts a
+dollar price to euros. A real account held abroad (Alpaca, Interactive
+Brokers Ireland) must be declared every year on form 3916-bis.
 """
 
 import argparse
@@ -43,10 +52,14 @@ STRING_FIELDS = ("qty", "notional", "limit_price", "stop_price", "trail_price", 
                  "take_profit_limit_price", "stop_loss_stop_price", "stop_loss_limit_price")
 TIF_WORDS = {"day": "good for today", "gtc": "good until canceled", "opg": "at the open",
              "cls": "at the close", "ioc": "immediate or cancel", "fok": "fill or kill"}
-YES_WORDS = ("yes", "y")
-BATCH_WORDS = {"all", "every", "everything", "rest", "remaining", "them", "both", "batch", "each"}
+YES_WORDS = ("yes", "y", "oui")
+BATCH_WORDS = {"all", "every", "everything", "rest", "remaining", "them", "both", "batch", "each",
+               "tout", "tous", "toutes", "reste", "chacun", "chaque"}
 DOUBT_WORDS = {"no", "not", "dont", "don't", "wait", "cancel", "stop", "but", "maybe", "later",
-               "hold", "unless", "if"}
+               "hold", "unless", "if", "non", "pas", "attends", "attend", "annule", "mais",
+               "peut", "plus", "tard", "sauf", "si"}
+FINGERPRINT_EXTRA = ("enveloppe",)
+FRENCH_BROKERS = {"boursobank": "BoursoBank", "fortuneo": "Fortuneo"}
 
 
 class TicketError(Exception):
@@ -91,7 +104,7 @@ def rec_day(rec):
 
 def fingerprint(order):
     """Same function as trader-risk/check.py: identifies the exact order."""
-    core = {k: order[k] for k in ALPACA_FIELDS if k in order and order[k] is not None}
+    core = {k: order[k] for k in ALPACA_FIELDS + FINGERPRINT_EXTRA if k in order and order[k] is not None}
     blob = json.dumps(core, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
@@ -161,7 +174,7 @@ def parse_yes(reply, order, batch_symbols=()):
         return False, "the reply is empty"
     if "?" in raw:
         return False, "the reply is a question, not a yes"
-    words = re.findall(r"[a-z']+", raw.lower())
+    words = re.findall(r"[a-zà-ÿ']+", raw.lower())
     if not words or words[0] not in YES_WORDS:
         return False, "only a reply that starts with \"yes\" counts (not ok, sure, go, do it)"
     if BATCH_WORDS & set(words):
@@ -169,7 +182,7 @@ def parse_yes(reply, order, batch_symbols=()):
     if DOUBT_WORDS & set(words[1:]):
         return False, "the reply has a condition or a doubt in it; ask again"
     sym = str(order.get("symbol", "")).upper()
-    tokens = set(re.findall(r"[A-Z][A-Z.\-]{0,6}", raw.upper()))
+    tokens = set(re.findall(r"[A-Z0-9][A-Z0-9.\-]{0,7}", raw.upper()))
     others = {s.upper() for s in batch_symbols} - {sym}
     named = tokens & others
     if named:
@@ -228,8 +241,67 @@ def status_of(order, risk, state, today):
 
 # ---------------------------------------------------------------- rendering
 
+def courtier_fr(cfg):
+    c = str(cfg.get("courtier") or "").lower()
+    return c if c in FRENCH_BROKERS else None
+
+
+def plain_fr(order):
+    """ACHAT de 29 actions ORA.PA, ordre au marché, valable aujourd'hui"""
+    side = "ACHAT" if str(order.get("side", "")).lower() == "buy" else "VENTE"
+    sym = order.get("symbol", "?")
+    if order.get("notional") is not None:
+        what = "%s € de %s" % (str(order["notional"]).replace(".", ","), sym)
+    else:
+        q = _str_num(order.get("qty"))
+        what = "%s action%s %s" % (q, "" if q == "1" else "s", sym)
+    typ = str(order.get("type", "market"))
+    if typ == "limit":
+        how = "ordre à cours limité à %s" % str(order.get("limit_price")).replace(".", ",")
+    elif typ == "stop":
+        how = "ordre à seuil de déclenchement à %s" % str(order.get("stop_price")).replace(".", ",")
+    elif typ == "market":
+        how = "ordre au marché"
+    else:
+        how = "ordre %s" % typ.replace("_", " ")
+    tif = {"day": "valable aujourd'hui", "gtc": "valable jusqu'à annulation"}.get(
+        str(order.get("time_in_force", "day")), str(order.get("time_in_force")))
+    return "%s de %s, %s, %s" % (side, what, how, tif)
+
+
+def render_fr(order, idx, total, cfg, ready, label, rv):
+    """Ticket for a French broker: what to type in the app, nothing is sent."""
+    c = courtier_fr(cfg)
+    env = str(order.get("enveloppe") or cfg.get("enveloppe") or "CTO").upper()
+    mode = "SIMULATION (rien n'est passé)" if cfg.get("paper", True) else "COMPTE RÉEL"
+    lines = ["ORDRE %d sur %d, %s, %s, %s" % (idx, total, FRENCH_BROKERS[c], env, mode),
+             "  " + plain_fr(order)]
+    if order.get("isin"):
+        lines.append("  ISIN : %s" % order["isin"])
+    if order.get("frais_estimes") is not None:
+        lines.append("  frais estimés : %s €" % str(order["frais_estimes"]).replace(".", ","))
+    elif rv and rv.get("fees") is not None:
+        lines.append("  frais estimés : %s €" % str(rv["fees"]).replace(".", ","))
+    if order.get("why"):
+        lines.append("  pourquoi : " + order["why"])
+    lines.append("  " + label)
+    for w in (rv or {}).get("warnings", []):
+        lines.append("  note : " + w)
+    lines.append("  %s n'a pas de connecteur d'ordres : Claude ne passe pas cet ordre." % FRENCH_BROKERS[c])
+    if ready and cfg.get("paper", True):
+        lines.append("  Simulation : réponds \"oui\" pour l'enregistrer comme s'il était passé, au prix du")
+        lines.append("  moment, sans rien saisir chez %s. Réponds \"non\" pour le passer." % FRENCH_BROKERS[c])
+    elif ready:
+        lines.append("  Réponds \"oui\" pour valider ce seul ordre, puis saisis-le toi-même dans l'appli %s"
+                     % FRENCH_BROKERS[c])
+        lines.append("  (%s, %s). Réponds \"non\" pour le passer." % (env, plain_fr(order)))
+    return "\n".join(lines), ready
+
+
 def render(order, idx, total, cfg, risk, state, today):
     ready, label, rv = status_of(order, risk, state, today)
+    if courtier_fr(cfg):
+        return render_fr(order, idx, total, cfg, ready, label, rv)
     broker = str(cfg.get("broker", "alpaca")).lower()
     paper = cfg.get("paper", True)
     acct = "PAPER account" if paper else "LIVE ACCOUNT, REAL MONEY"
@@ -240,6 +312,9 @@ def render(order, idx, total, cfg, risk, state, today):
     lines.append("  " + label)
     for w in (rv or {}).get("warnings", []):
         lines.append("  note: " + w)
+    if not paper and str(cfg.get("devise", "")).upper() == "EUR":
+        lines.append("  France : un compte chez un courtier étranger se déclare chaque année (formulaire")
+        lines.append("  3916-bis), même vide ; sinon 1 500 € d'amende par compte et par an.")
     if broker == "ibkr":
         lines.append("  Claude drafts this with the Interactive Brokers connector. IBKR sends it to your")
         lines.append("  IBKR account, and it only goes to the market after you approve it there.")
@@ -256,6 +331,13 @@ def render(order, idx, total, cfg, risk, state, today):
 
 def ticket_json(order, idx, cfg, risk, state, today):
     ready, label, rv = status_of(order, risk, state, today)
+    if courtier_fr(cfg):
+        return {"index": idx, "ready": ready, "status": label, "plain": plain(order),
+                "fingerprint": fingerprint(order), "paper": bool(cfg.get("paper", True)),
+                "broker": courtier_fr(cfg), "tool": None, "manual": True,
+                "enveloppe": str(order.get("enveloppe") or cfg.get("enveloppe") or "CTO").upper(),
+                "isin": order.get("isin"), "frais_estimes": order.get("frais_estimes"),
+                "why": order.get("why", "")}
     return {"index": idx, "ready": ready, "status": label, "plain": plain(order),
             "fingerprint": fingerprint(order), "paper": bool(cfg.get("paper", True)),
             "broker": cfg.get("broker", "alpaca"), "tool": "place_stock_order",
@@ -264,8 +346,24 @@ def ticket_json(order, idx, cfg, risk, state, today):
 
 # ---------------------------------------------------------------- fills -> lots
 
-def apply_fill(portfolio_path, cfg, symbol, side, qty, price, date):
-    """Record a filled order in trader/portfolio.json (a lot for a buy, FIFO for a sell)."""
+def french_rules(cfg):
+    return bool(courtier_fr(cfg) or str(cfg.get("devise", "")).upper() == "EUR"
+                or str(cfg.get("methode_cout", "")).lower() == "pmp")
+
+
+def apply_fill(portfolio_path, cfg, symbol, side, qty, price, date, fees=0.0, envelope=None, fx=None):
+    """Record a filled order in trader/portfolio.json (a lot for a buy, FIFO for a sell).
+
+    French rules (devise EUR, a French courtier or "methode_cout": "pmp"): the
+    position is per (ticker, envelope), a buy's fees are added to its cost, a
+    sell's fees come off the proceeds, a dollar price is divided by fx (1 € = fx $),
+    and a sell takes the same share of every lot so the weighted average cost
+    (prix moyen pondéré) of what is left does not move."""
+    fr = french_rules(cfg)
+    env = str(envelope or cfg.get("enveloppe") or "CTO").upper() if fr else None
+    if fx:
+        price = float(price) / float(fx)
+    fees = float(fees or 0)
     pf = read_json(portfolio_path, "portfolio", required=False)
     if pf is None:
         budget = cfg.get("budget")
@@ -277,21 +375,34 @@ def apply_fill(portfolio_path, cfg, symbol, side, qty, price, date):
     cost = round(qty * price, 2)
     pos = None
     for p in pf.setdefault("positions", []):
-        if str(p.get("ticker", "")).upper() == symbol:
+        if str(p.get("ticker", "")).upper() == symbol and (
+                not fr or str(p.get("enveloppe", "CTO")).upper() == env):
             pos = p
     if side == "buy":
+        cost = round(cost + fees, 2)
         if pos is None:
             pos = {"ticker": symbol, "shares": 0.0, "lots": []}
+            if fr:
+                pos["enveloppe"] = env
             pf["positions"].append(pos)
         lots = pos.setdefault("lots", [])
-        lots.append({"id": "%s-%d" % (symbol, len(lots) + 1), "date": date, "shares": qty, "cost": cost})
+        lot = {"id": "%s-%d" % (symbol, len(lots) + 1), "date": date, "shares": qty, "cost": cost}
+        if fees:
+            lot["frais"] = round(fees, 2)
+        lots.append(lot)
         pos["shares"] = round(float(pos.get("shares", 0)) + qty, 6)
         pf["cash"] = round(float(pf.get("cash", 0)) - cost, 2)
     else:
         if pos is None or float(pos.get("shares", 0)) + 1e-9 < qty:
             raise TicketError("cannot record selling %s %s: the portfolio holds %s"
                               % (qty, symbol, pos.get("shares", 0) if pos else 0))
-        left = qty
+        if fr:
+            held = float(pos["shares"])
+            keep = 1.0 - qty / held if held else 0.0
+            for lot in pos.get("lots", []):
+                lot["cost"] = round(float(lot["cost"]) * keep, 2)
+                lot["shares"] = round(float(lot["shares"]) * keep, 6)
+        left = 0 if fr else qty
         for lot in sorted(pos.get("lots", []), key=lambda l: l.get("date", "")):
             if left <= 1e-9:
                 break
@@ -304,7 +415,7 @@ def apply_fill(portfolio_path, cfg, symbol, side, qty, price, date):
         pos["shares"] = round(float(pos["shares"]) - qty, 6)
         if pos["shares"] <= 1e-9:
             pf["positions"].remove(pos)
-        pf["cash"] = round(float(pf.get("cash", 0)) + cost, 2)
+        pf["cash"] = round(float(pf.get("cash", 0)) + cost - fees, 2)
     write_json(portfolio_path, pf)
     return pf
 
@@ -366,7 +477,13 @@ def cmd_approve(a):
     state.setdefault("orders", []).append(rec)
     write_json(a.state, state)
     print("Recorded your yes for order %d: %s." % (a.index, plain(order)))
-    if str(cfg.get("broker", "alpaca")).lower() == "ibkr":
+    if courtier_fr(cfg) and cfg.get("paper", True):
+        print("Simulation : rien à saisir chez %s. Enregistre-le au prix du moment : ticket.py result --index %d "
+              "--status placed --filled-qty Q --filled-price P --frais F" % (FRENCH_BROKERS[courtier_fr(cfg)], a.index))
+    elif courtier_fr(cfg):
+        print("Saisis-le maintenant toi-même dans l'appli %s. Une fois exécuté : ticket.py result --index %d "
+              "--status placed --filled-qty Q --filled-price P --frais F" % (FRENCH_BROKERS[courtier_fr(cfg)], a.index))
+    elif str(cfg.get("broker", "alpaca")).lower() == "ibkr":
         print("Now draft it with the Interactive Brokers connector; approve it in your IBKR account.")
     else:
         print("Now call place_stock_order with exactly:")
@@ -405,7 +522,8 @@ def cmd_result(a):
     write_json(a.state, state)
     print("Recorded order %d as %s." % (a.index, a.status))
     if a.status == "placed" and a.filled_qty and a.filled_price:
-        apply_fill(a.portfolio, cfg, rec["symbol"], rec["side"], a.filled_qty, a.filled_price, today)
+        apply_fill(a.portfolio, cfg, rec["symbol"], rec["side"], a.filled_qty, a.filled_price, today,
+                   a.frais, order.get("enveloppe"), a.taux_change)
         print("Added the fill to %s." % a.portfolio)
     elif a.status == "placed":
         print("When it fills, record it for trader-tax: ticket.py fill --symbol %s --side %s --qty Q --price P"
@@ -416,7 +534,16 @@ def cmd_result(a):
 def cmd_fill(a):
     cfg = read_json(a.config, "config", required=False) or {}
     date = a.date or datetime.date.today().isoformat()
-    pf = apply_fill(a.portfolio, cfg, a.symbol, a.side, a.qty, a.price, date)
+    pf = apply_fill(a.portfolio, cfg, a.symbol, a.side, a.qty, a.price, date, a.frais, a.enveloppe,
+                    a.taux_change)
+    if french_rules(cfg):
+        def eur(x):
+            return ("{:,.2f}".format(float(x))).replace(",", " ").replace(".", ",") + " €"
+        unit = ("%s $" % str(a.price).replace(".", ",")) if a.taux_change else eur(a.price)
+        print("Enregistré : %s de %s %s à %s le %s (frais %s). Liquidités : %s." % (
+            "achat" if a.side == "buy" else "vente", a.qty, a.symbol.upper(), unit, date,
+            eur(a.frais), eur(pf["cash"])))
+        return 0
     print("Recorded %s %s %s at %s on %s. Cash now %s." % (a.side, a.qty, a.symbol.upper(),
                                                           _money(a.price), date, _money(pf["cash"])))
     return 0
@@ -469,6 +596,8 @@ def main(argv=None):
     p.add_argument("--note")
     p.add_argument("--filled-qty")
     p.add_argument("--filled-price")
+    p.add_argument("--frais", type=float, default=0.0, help="fees actually charged (euros)")
+    p.add_argument("--taux-change", type=float, help="1 € = x $ on the trade date, for a dollar price")
     p.add_argument("--portfolio", default="trader/portfolio.json")
     p = sub.add_parser("fill", help="add a filled order to trader/portfolio.json")
     p.add_argument("--symbol", required=True)
@@ -476,6 +605,9 @@ def main(argv=None):
     p.add_argument("--qty", required=True)
     p.add_argument("--price", required=True)
     p.add_argument("--date")
+    p.add_argument("--frais", type=float, default=0.0, help="fees actually charged (euros)")
+    p.add_argument("--enveloppe", choices=["CTO", "PEA"])
+    p.add_argument("--taux-change", type=float, help="1 € = x $ on the trade date, for a dollar price")
     p.add_argument("--portfolio", default="trader/portfolio.json")
     p.add_argument("--config", default="trader/config.json")
     p = sub.add_parser("log", help="today's decisions")

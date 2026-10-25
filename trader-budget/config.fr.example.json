@@ -1,0 +1,23 @@
+{
+  "budget": 300,
+  "devise": "EUR",
+  "courtier": "fortuneo",
+  "formule": "starter",
+  "enveloppe": "PEA",
+  "cash_buffer_pct": 10,
+  "max_position_pct": 40,
+  "max_order_usd": 2000,
+  "min_order_usd": 1,
+  "max_frais_pct": 2,
+  "max_orders_per_day": 5,
+  "fractional": false,
+  "paper": true,
+  "blocked": [],
+  "allow_options": false,
+  "allow_margin": false,
+  "allow_short": false,
+  "pea_ouverture": "2026-11-01",
+  "pea_versements": 300,
+  "pea_jeune": false,
+  "sec_user_agent": "Ton Nom ton@email.fr"
+}

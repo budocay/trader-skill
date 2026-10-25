@@ -29,6 +29,31 @@ Two yeses from the user, one PASS from the rules. No yes, no order.
 
 `${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
 
+## France : BoursoBank et Fortuneo
+
+Ni BoursoBank ni Fortuneo n'ont de connecteur d'ordres : **Claude ne passe
+jamais l'ordre**. Avec `"courtier": "boursobank"` ou `"fortuneo"` dans
+`trader/config.json`, `ticket.py show` affiche un ticket en français (sens,
+quantité, ISIN, enveloppe, frais estimés) et ce que l'utilisateur doit saisir
+lui-même dans l'appli de son courtier.
+
+1. `ticket.py show` : montre UN ticket prêt et demande « Je valide cet ordre ?
+   Réponds oui ou non. » Un « oui » compte comme un « yes » ; « oui pour
+   tous » est refusé.
+2. `ticket.py approve --index N --reply "<sa réponse mot pour mot>"`.
+3. En **simulation** (`"paper": true`, par défaut) : rien à saisir chez le
+   courtier ; enregistre l'ordre au cours du moment. En **réel** : il le saisit
+   dans l'appli, puis te donne le prix et les frais de l'avis d'opéré.
+4. `ticket.py result --index N --status placed --filled-qty Q --filled-price P --frais F`
+   (`--taux-change 1.08` pour un prix en dollars). Le coût enregistré inclut
+   les frais, et une vente garde le prix moyen pondéré de ce qui reste.
+
+**Compte à l'étranger** : un vrai compte Alpaca ou Interactive Brokers
+(Irlande) se déclare chaque année sur le formulaire 3916-bis, même vide, sous
+peine de 1 500 € d'amende par compte et par an. Rappelle-le avant d'aider à
+ouvrir un tel compte. Le compte papier d'Alpaca, sans argent réel, sert à
+s'entraîner.
+
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/ticket.py" show                     # every ticket, READY or not
 python3 "${CLAUDE_SKILL_DIR}/ticket.py" approve --index 1 --reply "yes"
