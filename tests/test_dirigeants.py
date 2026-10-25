@@ -88,6 +88,8 @@ class TexteAmf(unittest.TestCase):
     def test_isin_typed_badly_falls_back_to_the_header(self):
         self.assertEqual(dir_._isin("xparFR0010557264"), "FR0010557264")
         self.assertIsNone(dir_._isin("FR 00053027"))
+        self.assertTrue(dir_.isin_valide("FR0004040608"))
+        self.assertFalse(dir_.isin_valide("XPARFR001055"))
 
     def test_warrants_and_options_are_not_buys(self):
         self.assertEqual(dir_.sens("Acquisition de bon de souscription"), "autre")

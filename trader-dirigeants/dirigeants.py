@@ -128,10 +128,33 @@ def date_fr(texte):
     return datetime.date(int(m.group(3)), MOIS[m.group(2).lower()], int(m.group(1))).isoformat()
 
 
+def isin_valide(isin):
+    """Clé de contrôle ISIN (Luhn sur les chiffres, A=10 ... Z=35)."""
+    if not re.fullmatch(r"[A-Z]{2}[A-Z0-9]{9}\d", isin or ""):
+        return False
+    chiffres = "".join(str(int(c, 36)) for c in isin[:-1])
+    total = 0
+    for i, ch in enumerate(reversed(chiffres)):
+        d = int(ch) * (2 if i % 2 == 0 else 1)
+        total += d - 9 if d > 9 else d
+    return (10 - total % 10) % 10 == int(isin[-1])
+
+
+PAYS_ISIN = {"FR", "BE", "NL", "LU", "DE", "IT", "ES", "PT", "IE", "AT", "FI", "SE", "DK", "NO", "CH", "GB",
+             "US", "CA", "JE", "GG", "IM", "MC", "XS", "EU", "BM", "KY", "IL", "JP", "AU", "GR", "PL", "CZ",
+             "HU", "RO", "BG", "HR", "SI", "SK", "EE", "LV", "LT", "MT", "CY", "IS", "LI", "SN", "CI", "MA",
+             "GA", "CM", "TN", "BR", "MX", "ZA", "IN", "CN", "HK", "SG", "KR", "TW", "NZ", "CW", "VG", "PA"}
+
+
 def _isin(code):
-    """Un ISIN lisible dans le champ du déclarant (« xparFR0010557264 » compris), sinon None."""
-    m = re.search(r"[A-Z]{2}[A-Z0-9]{9}\d", re.sub(r"\s", "", code or "").upper())
-    return m.group(0) if m else None
+    """Un ISIN valide, avec un vrai code pays, dans le champ du déclarant
+    (« xparFR0010557264 » compris), sinon None."""
+    s = re.sub(r"\s", "", code or "").upper()
+    for i in range(len(s) - 11):
+        c = s[i:i + 12]
+        if c[:2] in PAYS_ISIN and isin_valide(c):
+            return c
+    return None
 
 
 def _nombre(t):
