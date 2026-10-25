@@ -1,0 +1,61 @@
+2026DD1128895                                                                                                     24 juillet 2026
+FR0004040608 - DD193371
+
+
+                                                        INFORMATION
+
+
+                          Déclaration individuelle relative aux opérations des personnes
+             mentionnées à l’article L.621-18-2 du Code monétaire et financier sur les titres de la société
+
+
+
+LA PRESENTE NOTIFICATION N’A PAS FAIT L’OBJET D’UN CONTROLE DE L’AMF ET EST ETABLIE
+                SOUS LA RESPONSABILITE EXCLUSIVE DU DECLARANT.
+
+
+
+
+NOM /FONCTION DE LA PERSONNE EXERCANT DES RESPONSABILITES DIRIGEANTES OU DE LA
+PERSONNE ETROITEMENT LIEE :
+
+SOCIETE X, Membre du conseil d'administration
+
+
+NOTIFICATION INITIALE / MODIFICATION:
+
+Notification initiale
+
+
+                                            COORDONNEES DE L’EMETTEUR
+
+NOM : ABC ARBITRAGE
+LEI : 969500IZ7E6B3QVX2I11
+
+
+                                               DETAIL DE LA TRANSACTION
+
+DATE DE LA TRANSACTION : 23 juillet 2026
+LIEU DE LA TRANSACTION : Euronext Paris
+NATURE DE LA TRANSACTION : Cession
+DESCRIPTION DE L’INSTRUMENT FINANCIER : Action
+
+
+                                           INFORMATION DETAILLEE PAR OPERATION
+
+
+PRIX UNITAIRE : 5.0316 Euro
+VOLUME : 3 832.0000
+
+
+                                                   INFORMATIONS AGREGEES
+
+
+PRIX : 5.0316 Euro
+VOLUME : 3 832.0000
+
+
+TRANSACTION LIEE A L’EXERCICE DE PROGRAMMES D’OPTIONS SUR ACTIONS OU SUR UNE ATTRIBUTION
+D’ACTIONS GRATUITES OU DE PERFORMANCES : NON
+
+DATE DE RECEPTION DE LA NOTIFICATION : 24 juillet 2026

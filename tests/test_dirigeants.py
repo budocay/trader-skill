@@ -71,6 +71,35 @@ class Declarations(unittest.TestCase):
         self.assertEqual(isins, {"FR0000133308"})
 
 
+class TexteAmf(unittest.TestCase):
+    """Le modèle réel d'une déclaration publiée par l'AMF (texte de pdftotext -layout)."""
+
+    def test_extraire(self):
+        with open(os.path.join(FIX, "trader-dirigeants", "declaration-amf.txt"), encoding="utf-8") as fh:
+            rows = dir_.extraire_texte(fh.read())
+        self.assertEqual(len(rows), 1)
+        r = rows[0]
+        self.assertEqual((r["reference"], r["societe"], r["isin"]), ("2026DD1128895", "ABC ARBITRAGE", "FR0004040608"))
+        self.assertEqual((r["date"], r["publie"], r["nature"]), ("2026-07-23", "2026-07-24", "Cession"))
+        self.assertEqual((r["prix"], r["volume"], r["lie_programme"]), (5.0316, 3832.0, "non"))
+        self.assertIn("conseil d'administration", r["declarant"])
+        self.assertEqual(dir_.normaliser(r)["sens"], "vente")
+
+    def test_isin_typed_badly_falls_back_to_the_header(self):
+        self.assertEqual(dir_._isin("xparFR0010557264"), "FR0010557264")
+        self.assertIsNone(dir_._isin("FR 00053027"))
+
+    def test_warrants_and_options_are_not_buys(self):
+        self.assertEqual(dir_.sens("Acquisition de bon de souscription"), "autre")
+        self.assertEqual(dir_.sens("Acquisition de stock-options"), "autre")
+        self.assertEqual(dir_.sens("Acquisition"), "achat")
+
+    def test_french_dates(self):
+        self.assertEqual(dir_.date_fr("1er août 2026"), "2026-08-01")
+        with self.assertRaises(dir_.DirigeantsErreur):
+            dir_.date_fr("demain")
+
+
 class Cli(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

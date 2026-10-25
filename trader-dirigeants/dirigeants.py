@@ -16,6 +16,8 @@ puis lecture du PDF) et les enregistre ici avec `ajouter` ou `importer`.
         --declarant "Y. S., membre du comité exécutif" --nature acquisition --date 2026-10-01 \\
         --prix 13.6941 --volume 10000
     python3 dirigeants.py importer lot.json               # une liste de déclarations
+    python3 dirigeants.py extraire DD_26_1146018.pdf      # lit un PDF (ou son texte) de l'AMF et l'ajoute
+    python3 dirigeants.py amf --jours 30 --societe "ABC ARBITRAGE"   # interroge la BDIF directement
     python3 dirigeants.py liste --jours 30                # les plus récentes d'abord
     python3 dirigeants.py signaux --jours 30              # par société : achats, ventes, achats groupés
     python3 dirigeants.py portefeuille                    # celles qui touchent tes titres
@@ -33,11 +35,20 @@ import datetime
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+import time
+import urllib.parse
+import urllib.request
 
 ACHATS = {"acquisition", "achat", "souscription"}
 VENTES = {"cession", "vente"}
 CHAMPS = ("reference", "societe", "isin", "declarant", "nature", "date", "prix", "volume")
+MOIS = {"janvier": 1, "fevrier": 2, "février": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6, "juillet": 7,
+        "aout": 8, "août": 8, "septembre": 9, "octobre": 10, "novembre": 11, "decembre": 12, "décembre": 12}
+BDIF = "https://bdif.amf-france.org/back/api/v1"
+UA = "trader-skill-fr (+https://github.com/budocay/trader-skill)"
 
 
 class DirigeantsErreur(Exception):
@@ -70,8 +81,11 @@ def euros(x):
 
 
 def sens(nature):
+    """achat, vente ou autre. Bons de souscription, options et actions gratuites : autre."""
     n = str(nature or "").strip().lower()
     n = n.replace("é", "e").replace("è", "e")
+    if any(w in n for w in ("bon", "option", "gratuite", "attribution", "warrant")):
+        return "autre"
     if any(n.startswith(a) for a in ACHATS):
         return "achat"
     if any(n.startswith(v) for v in VENTES):
@@ -104,6 +118,133 @@ def normaliser(d):
     lp = str(d.get("lie_programme", "non")).strip().lower()
     out["lie_programme"] = lp in ("oui", "true", "1", "yes")
     return out
+
+
+def date_fr(texte):
+    """'23 juillet 2026' -> '2026-07-23'."""
+    m = re.search(r"(\d{1,2})(?:er)?\s+([a-zA-Zéûè]+)\s+(\d{4})", texte or "")
+    if not m or m.group(2).lower() not in MOIS:
+        raise DirigeantsErreur("date illisible : %r" % texte)
+    return datetime.date(int(m.group(3)), MOIS[m.group(2).lower()], int(m.group(1))).isoformat()
+
+
+def _isin(code):
+    """Un ISIN lisible dans le champ du déclarant (« xparFR0010557264 » compris), sinon None."""
+    m = re.search(r"[A-Z]{2}[A-Z0-9]{9}\d", re.sub(r"\s", "", code or "").upper())
+    return m.group(0) if m else None
+
+
+def _nombre(t):
+    return float(re.sub(r"[\s\u00a0]", "", t).replace(",", "."))
+
+
+def extraire_texte(texte, reference=None):
+    """Lit le texte d'une déclaration AMF (modèle « Déclaration individuelle relative aux
+    opérations des personnes mentionnées à l'article L.621-18-2 ») et rend une ligne par
+    transaction, au format de `ajouter`."""
+    t = texte.replace("\u2019", "'")
+    ref = reference
+    m = re.search(r"(\d{4}DD\d{5,})", t)
+    if m and not ref:
+        ref = m.group(1)
+    if not ref:
+        raise DirigeantsErreur("référence AMF (AAAADD...) introuvable")
+    publie = None
+    m = re.search(r"\d{4}DD\d{5,}\s+(\d{1,2}(?:er)?\s+\S+\s+\d{4})", t)
+    if m:
+        try:
+            publie = date_fr(m.group(1))
+        except DirigeantsErreur:
+            publie = None
+    m = re.search(r"\b([A-Z]{2}[A-Z0-9]{9}\d)\s*-\s*DD\d+", t)
+    isin_entete = m.group(1) if m else ""
+    m = re.search(r"PERSONNE ETROITEMENT LIEE\s*:\s*(.+?)\n\s*\n?\s*NOTIFICATION", t, re.S)
+    declarant = " ".join(m.group(1).split()) if m else ""
+    m = re.search(r"COORDONNEES DE L'EMETTEUR\s+NOM\s*:\s*(.+)", t)
+    societe = m.group(1).strip() if m else ""
+    blocs = re.split(r"DETAIL DE LA TRANSACTION", t)[1:]
+    if not blocs:
+        raise DirigeantsErreur("%s : aucun bloc « DETAIL DE LA TRANSACTION »" % ref)
+    out = []
+    for i, b in enumerate(blocs, 1):
+        def champ(nom):
+            mm = re.search(nom + r"\s*:\s*(.+)", b)
+            return mm.group(1).strip() if mm else None
+        agg = b.split("INFORMATIONS AGREGEES")[-1]
+        mp = re.search(r"PRIX\s*:\s*([\d\s.,\u00a0]+)", agg)
+        mv = re.search(r"VOLUME\s*:\s*([\d\s.,\u00a0]+)", agg)
+        lie = champ(r"ATTRIBUTION\s+D'ACTIONS GRATUITES OU DE PERFORMANCES") or ""
+        if not lie:
+            ml = re.search(r"PERFORMANCES\s*:\s*(OUI|NON)", b)
+            lie = ml.group(1) if ml else "NON"
+        if not (mp and mv):
+            raise DirigeantsErreur("%s : prix ou volume introuvable (transaction %d)" % (ref, i))
+        out.append({
+            "reference": ref if len(blocs) == 1 else "%s-%d" % (ref, i),
+            "societe": societe,
+            "isin": _isin(champ(r"CODE D'IDENTIFICATION DE L'INSTRUMENT FINANCIER")) or isin_entete,
+            "declarant": declarant, "nature": champ("NATURE DE LA TRANSACTION") or "",
+            "date": date_fr(champ("DATE DE LA TRANSACTION") or ""), "publie": publie,
+            "prix": _nombre(mp.group(1)), "volume": _nombre(mv.group(1)),
+            "instrument": champ(r"DESCRIPTION DE L'INSTRUMENT FINANCIER") or "",
+            "lieu": champ("LIEU DE LA TRANSACTION") or "",
+            "lie_programme": "oui" if lie.strip().upper().startswith("OUI") else "non"})
+    return out
+
+
+def texte_pdf(path):
+    exe = shutil.which("pdftotext")
+    if not exe:
+        raise DirigeantsErreur("pdftotext introuvable (paquet poppler-utils) : donne le texte du PDF")
+    r = subprocess.run([exe, "-layout", path, "-"], capture_output=True, timeout=60)
+    return r.stdout.decode("utf-8", "replace")
+
+
+def bdif_recherche(jours=30, societe=None, aujourdhui=None):
+    """Déclarations des dirigeants publiées par l'AMF (API publique de la BDIF)."""
+    debut = (aujourdhui or datetime.date.today()) - datetime.timedelta(days=int(jours))
+    res, start = [], 0
+    while True:
+        q = {"TypesInformation": "DD", "DateDebut": debut.isoformat() + "T00:00:00.000Z",
+             "From": start, "Size": 200}
+        if societe:
+            q["RechercheTexte"] = societe
+        url = BDIF + "/informations?" + urllib.parse.urlencode(q)
+        req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.load(r)
+        res += d.get("result", [])
+        start += 200
+        if start >= d.get("total", 0):
+            return res
+        time.sleep(0.3)
+
+
+def bdif_pdf(info, dossier):
+    os.makedirs(dossier, exist_ok=True)
+    for doc in info.get("documents", []):
+        path = os.path.join(dossier, "%s.pdf" % info["numero"])
+        if not os.path.exists(path):
+            req = urllib.request.Request(BDIF + "/documents/" + doc["path"], headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = r.read()
+            with open(path, "wb") as fh:
+                fh.write(data)
+            time.sleep(0.25)
+        return path
+    return None
+
+
+def valides(lignes):
+    """Sépare les lignes complètes des autres : (bonnes, [erreurs])."""
+    bonnes, erreurs = [], []
+    for l in lignes:
+        try:
+            normaliser(l)
+            bonnes.append(l)
+        except DirigeantsErreur as e:
+            erreurs.append(str(e))
+    return bonnes, erreurs
 
 
 def ajouter(base, declarations):
@@ -197,6 +338,12 @@ def main(argv=None):
     p.add_argument("--lien", help="adresse du PDF sur bdif.amf-france.org")
     p = sub.add_parser("importer", help="enregistrer une liste de déclarations (JSON)")
     p.add_argument("fichier")
+    p = sub.add_parser("extraire", help="lire une déclaration AMF (PDF ou texte) et l'ajouter")
+    p.add_argument("fichiers", nargs="+")
+    p = sub.add_parser("amf", help="interroger la BDIF de l'AMF et ajouter les déclarations trouvées")
+    p.add_argument("--jours", type=int, default=30)
+    p.add_argument("--societe", action="append", help="raison sociale (répétable) ; toutes sinon")
+    p.add_argument("--dossier", default="trader/state/amf_pdf")
     p = sub.add_parser("liste")
     p.add_argument("--jours", type=int)
     p.add_argument("--isin")
@@ -238,6 +385,48 @@ def main(argv=None):
             ok, ko = ajouter(base, rows)
             ecrire(a.base, base)
             print("%d ajoutée(s), %d déjà connue(s)." % (len(ok), len(ko)))
+            return 0
+        if a.cmd == "extraire":
+            lignes, erreurs = [], []
+            for f in a.fichiers:
+                try:
+                    texte = texte_pdf(f) if f.lower().endswith(".pdf") else open(f, encoding="utf-8").read()
+                    lignes += extraire_texte(texte)
+                except DirigeantsErreur as e:
+                    erreurs.append("%s : %s" % (f, e))
+            lignes, err2 = valides(lignes)
+            erreurs += err2
+            ok, ko = ajouter(base, lignes)
+            ecrire(a.base, base)
+            for e in erreurs:
+                print("illisible, à relever à la main : " + e)
+            print("%d transaction(s) ajoutée(s), %d déjà connue(s), %d fichier(s) illisible(s)."
+                  % (len(ok), len(ko), len(erreurs)))
+            return 0 if ok or ko else 1
+        if a.cmd == "amf":
+            infos = []
+            for soc in (a.societe or [None]):
+                infos += bdif_recherche(a.jours, soc)
+            if a.societe:
+                voulu = {s.strip().upper() for s in a.societe}
+                infos = [i for i in infos if any(s["raisonSociale"].strip().upper() in voulu
+                                                 for s in i.get("societes", []))]
+            lignes, erreurs = [], []
+            for info in infos:
+                try:
+                    path = bdif_pdf(info, a.dossier)
+                    if path:
+                        lignes += extraire_texte(texte_pdf(path), info["numero"])
+                except (DirigeantsErreur, OSError) as e:
+                    erreurs.append("%s : %s" % (info.get("numero"), e))
+            lignes, err2 = valides(lignes)
+            erreurs += err2
+            ok, ko = ajouter(base, lignes)
+            ecrire(a.base, base)
+            for e in erreurs:
+                print("illisible, à relever à la main : " + e)
+            print("%d déclaration(s) AMF, %d transaction(s) ajoutée(s), %d déjà connue(s)."
+                  % (len(infos), len(ok), len(ko)))
             return 0
         if a.cmd == "liste":
             rows = recentes(base, a.jours)

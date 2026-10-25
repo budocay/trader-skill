@@ -32,6 +32,7 @@ python3 "${CLAUDE_SKILL_DIR}/dirigeants.py" ajouter --reference 2026DD1141604 --
     --isin FR0000133308 --declarant "membre du comité exécutif" --nature acquisition \
     --date 2026-10-01 --prix 13.6941 --volume 10000
 python3 "${CLAUDE_SKILL_DIR}/dirigeants.py" importer trader/lot.json   # plusieurs d'un coup
+python3 "${CLAUDE_SKILL_DIR}/dirigeants.py" amf --jours 30              # directement depuis l'AMF
 python3 "${CLAUDE_SKILL_DIR}/dirigeants.py" liste --jours 30
 python3 "${CLAUDE_SKILL_DIR}/dirigeants.py" signaux --jours 30
 python3 "${CLAUDE_SKILL_DIR}/dirigeants.py" portefeuille               # sur tes titres
@@ -40,8 +41,18 @@ python3 "${CLAUDE_SKILL_DIR}/dirigeants.py" nouveaux                   # une seu
 
 ## Étape 1 : trouver les déclarations
 
-Il n'y a pas d'API publique documentée pour la BDIF, et le poste de travail ne
-peut pas joindre bdif.amf-france.org. Passe par tes outils web :
+**Si le poste de travail peut joindre `bdif.amf-france.org`** (domaine autorisé
+dans les réglages de Claude), une seule commande suffit : elle interroge la base
+de l'AMF, télécharge les PDF et les lit (pdftotext requis) :
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/dirigeants.py" amf --jours 30                       # toutes les sociétés
+python3 "${CLAUDE_SKILL_DIR}/dirigeants.py" amf --jours 90 --societe "TF1"       # une société
+python3 "${CLAUDE_SKILL_DIR}/dirigeants.py" extraire chemin/vers/declaration.pdf
+```
+
+Les déclarations illisibles (champ mal rempli par le déclarant) sont listées :
+relève-les à la main. **Sinon**, passe par tes outils web :
 
 1. `dirigeants.py recherche ISIN` donne la requête. Lance-la avec WebSearch
    (par exemple `site:bdif.amf-france.org "FR0000133308"`). Les titres des
